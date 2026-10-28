@@ -61,6 +61,7 @@ export const unitedStates: CountryModule = {
       const m = ndcMedicine(r, today());
       if (!m) continue;
       hits.push({
+        country: "us",
         id: m.id,
         name: m.name,
         substances: m.substances.map((s) => s.name).join(", "),

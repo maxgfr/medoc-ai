@@ -12,11 +12,21 @@ import { download, log } from "../io";
 export const EMA_URL =
   "https://www.ema.europa.eu/en/documents/report/medicines-output-medicines_json-report_en.json";
 
-interface EmaEntry {
-  category?: string;
-  name_of_medicine?: string;
-  medicine_status?: string;
-  medicine_url?: string;
+type EmaEntry = import("../../shared/countries/de/parse").EmaEntry;
+
+let loaded: Promise<EmaEntry[]> | null = null;
+
+/** EMA's medicine list, downloaded once per run (France and Germany both read it). */
+export function loadEma(cacheDir: string): Promise<EmaEntry[]> {
+  loaded ??= download(EMA_URL, join(cacheDir, "ema", "medicines.json")).then((bytes) => {
+    const data = (JSON.parse(new TextDecoder().decode(bytes)) as { data?: EmaEntry[] }).data ?? [];
+    if (data.length < 1000) throw new Error(`EMA: only ${data.length} entries`);
+    return data;
+  });
+  loaded.catch(() => {
+    loaded = null;
+  });
+  return loaded;
 }
 
 /** "HEMLIBRA 30 mg/ml, solution injectable" → "hemlibra". */
@@ -39,10 +49,7 @@ export function eparLinks(entries: EmaEntry[]): Map<string, string> {
 export async function addEparLinks(meds: Medicine[], cacheDir: string): Promise<number> {
   let added = 0;
   try {
-    const bytes = await download(EMA_URL, join(cacheDir, "ema", "medicines.json"));
-    const links = eparLinks(
-      (JSON.parse(new TextDecoder().decode(bytes)) as { data?: EmaEntry[] }).data ?? [],
-    );
+    const links = eparLinks(await loadEma(cacheDir));
     for (const m of meds) {
       if (!m.ref?.startsWith("EU/")) continue;
       const url = links.get(brandKey(m.name));

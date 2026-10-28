@@ -92,13 +92,20 @@ export function detectLocale(stored: string | null, languages: readonly string[]
   return "en";
 }
 
-export function formatDate(locale: Locale, iso: string, style: "short" | "long" = "short"): string {
+const DATE_STYLES: Record<"short" | "long" | "time", Intl.DateTimeFormatOptions> = {
+  short: { dateStyle: "medium" },
+  long: { dateStyle: "full" },
+  time: { dateStyle: "medium", timeStyle: "short" },
+};
+
+export function formatDate(
+  locale: Locale,
+  iso: string,
+  style: "short" | "long" | "time" = "short",
+): string {
   const d = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat(
-    intlTag(locale),
-    style === "short" ? { dateStyle: "medium" } : { dateStyle: "full" },
-  ).format(d);
+  return new Intl.DateTimeFormat(intlTag(locale), DATE_STYLES[style]).format(d);
 }
 
 export function formatPrice(locale: Locale, value: number, currency: string): string {

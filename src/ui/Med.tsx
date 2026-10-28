@@ -23,6 +23,8 @@ const LINK_LABELS: Record<LinkKind, TextKey> = {
   dailymed: "med.linkDailymed",
   mhra: "med.linkMhra",
   emc: "med.linkEmc",
+  lookup: "med.linkLookup",
+  shortages: "med.linkShortages",
 };
 
 const ALERT_TONE: Record<Alert["kind"], "danger" | "warn" | "info" | "ok"> = {
@@ -50,7 +52,8 @@ export function Med({ country, id, scan }: { country: CountryId; id: string; sca
 function MedView({ med, scan }: { med: Medicine; scan?: ScanInfo }) {
   const t = useT();
   const locale = useLocale();
-  const { alertsBy, items, active } = useApp();
+  const { alertsBy, items, active, manifests } = useApp();
+  const source = manifests[med.country];
   const [tab, setTab] = useState<Tab>("info");
   const [focus, setFocus] = useState<string | null>(null);
   const mod = countryModule(med.country);
@@ -100,9 +103,11 @@ function MedView({ med, scan }: { med: Medicine; scan?: ScanInfo }) {
         </p>
         <h1 className="text-2xl font-bold tracking-tight">{med.name}</h1>
         <div className="flex flex-wrap gap-1.5">
-          <Badge tone={med.marketed ? "ok" : "neutral"}>
-            {med.marketed ? t("med.marketed") : t("med.notMarketed")}
-          </Badge>
+          {med.marketKnown === false ? null : (
+            <Badge tone={med.marketed ? "ok" : "neutral"}>
+              {med.marketed ? t("med.marketed") : t("med.notMarketed")}
+            </Badge>
+          )}
           {med.otc === true ? (
             <Badge tone="info">{t("med.otc")}</Badge>
           ) : med.otc === false ? (
@@ -199,6 +204,12 @@ function MedView({ med, scan }: { med: Medicine; scan?: ScanInfo }) {
         <MedAsk med={med} docs={docs.value} onCite={openSection} />
       )}
 
+      {source ? (
+        <p className="text-xs text-stone-500 dark:text-stone-400">
+          {t("med.dataAsOf", { date: formatDate(locale, source.generatedAt, "time") })} ·{" "}
+          {source.attribution}
+        </p>
+      ) : null}
       <p className="text-xs text-stone-500 dark:text-stone-400">{t("common.disclaimer")}</p>
     </article>
   );
@@ -335,7 +346,11 @@ function Info({ med, alerts }: { med: Medicine; alerts: Alert[] }) {
                 <span>{p.label}</span>
                 <span className="flex flex-wrap items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
                   <span className="num font-mono">
-                    {p.altCodes?.[0] && med.country === "us" ? p.altCodes[0] : p.code}
+                    {med.country === "de"
+                      ? `PZN ${p.code}`
+                      : p.altCodes?.[0] && med.country === "us"
+                        ? p.altCodes[0]
+                        : p.code}
                   </span>
                   {p.price !== undefined ? (
                     <span>{formatPrice(locale, p.price, mod.currency)}</span>

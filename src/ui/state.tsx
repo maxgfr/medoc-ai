@@ -12,10 +12,10 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { Alert, CountryId } from "../../shared/schema";
+import type { Alert, CountryId, Manifest } from "../../shared/schema";
 import { type Concern, concerns } from "../alerts/match";
-import { guessCountry } from "../countries/registry";
-import { alerts as loadAlerts, publishedCountries } from "../data/repo";
+import type { Scope } from "../countries/registry";
+import { forget, alerts as loadAlerts, manifest, publishedCountries } from "../data/repo";
 import {
   allItems,
   allLocalDatasets,
@@ -34,13 +34,18 @@ interface AppState {
   profiles: Profile[];
   active: Profile;
   setActive: (id: string) => Promise<void>;
-  country: CountryId;
-  setCountry: (c: CountryId) => Promise<void>;
+  /** Where searches look: every country (the default) or one. */
+  scope: Scope;
+  setScope: (s: Scope) => Promise<void>;
   /** Countries with an index, published or imported on this device. */
   available: CountryId[];
+  /** Each country's index manifest: its version and date. */
+  manifests: Partial<Record<CountryId, Manifest>>;
   items: Item[];
   treatments: Treatment[];
   alertsBy: Partial<Record<CountryId, Alert[]>>;
+  /** Asks the server for the latest index of every country (also done on its own). */
+  refreshData: () => Promise<void>;
   /** Everything that needs attention, all profiles. */
   concerns: Concern[];
   online: boolean;
@@ -61,8 +66,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeId, setActiveId] = useState("");
-  const [country, setCountryState] = useState<CountryId>("fr");
+  const [scope, setScopeState] = useState<Scope>("all");
   const [available, setAvailable] = useState<CountryId[]>([]);
+  const [manifests, setManifests] = useState<Partial<Record<CountryId, Manifest>>>({});
   const [items, setItems] = useState<Item[]>([]);
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [alertsBy, setAlertsBy] = useState<Partial<Record<CountryId, Alert[]>>>({});
@@ -87,22 +93,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTreatments(await allTreatments());
   }, [t]);
 
+  /**
+   * The countries, their manifests and alerts. `fresh` forgets everything read
+   * so far, so the next medicine opened comes from the latest index.
+   */
+  const loadIndexes = useCallback(async (fresh: boolean) => {
+    if (fresh) forget();
+    const published = await publishedCountries();
+    const local = (await allLocalDatasets()).map((d) => d.country);
+    const avail = [...new Set([...published, ...local])];
+    const ms = await Promise.all(avail.map(async (c) => [c, await manifest(c)] as const));
+    setAvailable(avail);
+    setManifests(
+      Object.fromEntries(ms.filter(([, m]) => m)) as Partial<Record<CountryId, Manifest>>,
+    );
+    const entries = await Promise.all(avail.map(async (c) => [c, await loadAlerts(c)] as const));
+    setAlertsBy(Object.fromEntries(entries));
+    return avail;
+  }, []);
+
   useEffect(() => {
     void (async () => {
       await reload();
-      const published = await publishedCountries();
-      const local = (await allLocalDatasets()).map((d) => d.country);
-      const avail = [...new Set([...published, ...local])];
-      setAvailable(avail);
-      const stored = await getKv<CountryId>("country");
-      setCountryState(
-        stored && avail.includes(stored) ? stored : guessCountry(navigator.languages ?? [], avail),
-      );
+      const avail = await loadIndexes(false);
+      const stored = await getKv<Scope>("scope");
+      setScopeState(stored && (stored === "all" || avail.includes(stored)) ? stored : "all");
       setReady(true);
-      const entries = await Promise.all(avail.map(async (c) => [c, await loadAlerts(c)] as const));
-      setAlertsBy(Object.fromEntries(entries));
     })();
-  }, [reload]);
+  }, [reload, loadIndexes]);
+
+  // An installed app can stay open for days: check for a newer index when it comes back to the front,
+  // at most every 30 minutes, and every 6 hours while it stays open.
+  useEffect(() => {
+    let last = Date.now();
+    const check = () => {
+      if (
+        document.visibilityState !== "visible" ||
+        !navigator.onLine ||
+        Date.now() - last < 30 * 60_000
+      )
+        return;
+      last = Date.now();
+      void loadIndexes(true);
+    };
+    const timer = setInterval(() => {
+      last = 0;
+      check();
+    }, 6 * 3600_000);
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("online", check);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("online", check);
+    };
+  }, [loadIndexes]);
 
   useEffect(() => {
     const on = () => setOnline(navigator.onLine);
@@ -124,20 +169,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await setKv("activeProfile", id);
         setActiveId(id);
       },
-      country,
-      setCountry: async (c) => {
-        await setKv("country", c);
-        setCountryState(c);
+      scope,
+      setScope: async (s) => {
+        await setKv("scope", s);
+        setScopeState(s);
       },
       available,
+      manifests,
       items,
       treatments,
       alertsBy,
+      refreshData: async () => {
+        await loadIndexes(true);
+      },
       concerns: concerns(items, treatments, alertsBy, localDay(new Date())),
       online,
       reload,
     };
-  }, [ready, profiles, activeId, country, available, items, treatments, alertsBy, online, reload]);
+  }, [
+    ready,
+    profiles,
+    activeId,
+    scope,
+    available,
+    manifests,
+    items,
+    treatments,
+    alertsBy,
+    online,
+    reload,
+    loadIndexes,
+  ]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

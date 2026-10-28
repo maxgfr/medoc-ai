@@ -1,6 +1,6 @@
 /** Hash routes, so the app works from any folder of GitHub Pages. */
 import { useEffect, useState } from "react";
-import type { CountryId } from "../../shared/schema";
+import { COUNTRIES, type CountryId } from "../../shared/schema";
 
 export type Route =
   | { name: "home" }
@@ -28,7 +28,7 @@ export interface ScanInfo {
   serial?: string;
 }
 
-const COUNTRY = /^(fr|us|uk)$/;
+const COUNTRY = new RegExp(`^(${COUNTRIES.join("|")})$`);
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function scanFrom(q: URLSearchParams): ScanInfo | undefined {

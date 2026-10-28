@@ -7,12 +7,13 @@ import { COUNTRIES } from "../../shared/schema";
 import { llm } from "../ai/settings";
 import { countryModule } from "../countries/registry";
 import { importFiles, prefetchCountry } from "../data/localImport";
-import { forget, manifest, sourceOf } from "../data/repo";
+import { isOld, manifest, sourceOf } from "../data/repo";
 import { exportBackup, importBackup, removeLocalDataset, wipeAll } from "../db/db";
 import { formatDate, LOCALES } from "../i18n";
 import { useLocale, useSetLocale, useT } from "../i18n/react";
 import { useLoad } from "./hooks";
 import { Button, downloadFile, ExternalLink, Field, Notice, PageTitle } from "./kit";
+import { ScopeSelect } from "./ScopeSelect";
 import { useApp } from "./state";
 
 const LOCALE_NAMES: Record<string, string> = { fr: "Français", en: "English" };
@@ -21,7 +22,6 @@ export function Settings() {
   const t = useT();
   const locale = useLocale();
   const setLocale = useSetLocale();
-  const { country, setCountry, available } = useApp();
   return (
     <div className="grid gap-4">
       <PageTitle title={t("settings.title")} />
@@ -40,17 +40,7 @@ export function Settings() {
           </select>
         </Field>
         <Field label={t("settings.country")} hint={t("settings.countryHint")}>
-          <select
-            className="input"
-            value={country}
-            onChange={(e) => void setCountry(e.target.value as CountryId)}
-          >
-            {available.map((c) => (
-              <option key={c} value={c}>
-                {countryModule(c).flag} {t(`country.${c}`)}
-              </option>
-            ))}
-          </select>
+          <ScopeSelect />
         </Field>
       </section>
       <AiSettings />
@@ -339,7 +329,7 @@ const IMPORT: Partial<
 function CountryData({ country }: { country: CountryId }) {
   const t = useT();
   const locale = useLocale();
-  const { reload } = useApp();
+  const { refreshData } = useApp();
   const [version, setVersion] = useState(0);
   const info = useLoad(
     async () => ({ source: await sourceOf(country), manifest: await manifest(country) }),
@@ -389,7 +379,11 @@ function CountryData({ country }: { country: CountryId }) {
               docs: m.counts.docs,
             })}
           </p>
-          {m.stale ? <Notice tone="warn">{t("settings.stale")}</Notice> : null}
+          {source === "local" ? (
+            <Notice tone="warn">{t("settings.localNotUpdated")}</Notice>
+          ) : m.stale || isOld(m) ? (
+            <Notice tone="warn">{t("settings.stale")}</Notice>
+          ) : null}
           <p className="text-xs text-stone-500">{m.attribution}</p>
           {m.sources.length ? (
             <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
@@ -411,8 +405,7 @@ function CountryData({ country }: { country: CountryId }) {
               busy={busy === "refresh"}
               onClick={() =>
                 void run("refresh", async () => {
-                  forget(country);
-                  await reload();
+                  await refreshData();
                   return t("settings.upToDate");
                 })
               }
@@ -440,8 +433,7 @@ function CountryData({ country }: { country: CountryId }) {
             onClick={() =>
               void run("remove", async () => {
                 await removeLocalDataset(country);
-                forget(country);
-                await reload();
+                await refreshData();
                 return t("settings.upToDate");
               })
             }
@@ -464,7 +456,7 @@ function CountryData({ country }: { country: CountryId }) {
                 if (files.length)
                   void run("import", async () => {
                     const count = await importFiles(country, files);
-                    await reload();
+                    await refreshData();
                     return t("settings.imported", { count });
                   });
               }}
