@@ -19,10 +19,10 @@ export function tsvRows(text: string): string[][] {
   return out;
 }
 
-/** dd/mm/yyyy, yyyymmdd or yyyy-mm-dd → yyyy-mm-dd. */
+/** dd/mm/yyyy, dd.mm.yyyy, yyyymmdd or yyyy-mm-dd → yyyy-mm-dd. */
 export function isoDate(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  let m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  let m = /^(\d{2})[/.](\d{2})[/.](\d{4})$/.exec(value);
   if (m) return `${m[3]}-${m[2]}-${m[1]}`;
   m = /^(\d{4})(\d{2})(\d{2})$/.exec(value);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
@@ -106,4 +106,40 @@ export function htmlToText(html: string): string {
     .replace(/ *\n */g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/**
+ * RFC 4180 rows: a quoted field may hold the delimiter, line breaks and
+ * doubled quotes. Cells are trimmed; blank lines and `#` comment lines dropped.
+ */
+export function csvRows(text: string, delimiter = ","): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  const endRow = () => {
+    row.push(field.trim());
+    if (row.some((x) => x) && !row[0]?.startsWith("#")) rows.push(row);
+    row = [];
+    field = "";
+  };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c !== '"') field += c;
+      else if (text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else quoted = false;
+    } else if (c === '"' && !field.trim()) {
+      quoted = true;
+      field = "";
+    } else if (c === delimiter) {
+      row.push(field.trim());
+      field = "";
+    } else if (c === "\n") endRow();
+    else if (c !== "\r") field += c;
+  }
+  if (field || row.length) endRow();
+  return rows;
 }

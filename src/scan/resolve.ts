@@ -1,11 +1,12 @@
 /**
- * From a scanned code to a medicine: the countries that own the code first
- * (a CIP13 is French), then the one picked in the app, then the others with an
- * index; within each, every key the code may be.
+ * From a scanned code to a medicine. A box is looked up in every country with
+ * an index, whatever the search scope: the countries that own the code first
+ * (a CIP13 is French, a PZN German), then the one picked for searches, then
+ * the others; within each, every key the code may be.
  */
 import type { ParsedCode } from "../../shared/codes/gs1";
 import type { CountryId, Medicine } from "../../shared/schema";
-import { REGISTRY } from "../countries/registry";
+import { REGISTRY, type Scope } from "../countries/registry";
 import { codeToId, medicine } from "../data/repo";
 
 export interface Resolved {
@@ -15,22 +16,26 @@ export interface Resolved {
   key: string;
 }
 
-export function countryOrder(
-  code: ParsedCode,
-  current: CountryId,
-  available: CountryId[],
-): CountryId[] {
+export function countryOrder(code: ParsedCode, scope: Scope, available: CountryId[]): CountryId[] {
   const owners = available.filter((c) => REGISTRY[c].owns(code));
-  const rest = [current, ...available].filter((c) => available.includes(c) && !owners.includes(c));
+  const preferred = scope === "all" ? [] : [scope];
+  const rest = [...preferred, ...available].filter(
+    (c) => available.includes(c) && !owners.includes(c),
+  );
   return [...new Set([...owners, ...rest])];
+}
+
+/** The countries that certainly issued this code, whether or not they have an index. */
+export function owners(code: ParsedCode): CountryId[] {
+  return (Object.keys(REGISTRY) as CountryId[]).filter((c) => REGISTRY[c].owns(code));
 }
 
 export async function resolveCode(
   code: ParsedCode,
-  current: CountryId,
+  scope: Scope,
   available: CountryId[],
 ): Promise<Resolved | null> {
-  const order = countryOrder(code, current, available);
+  const order = countryOrder(code, scope, available);
   for (const country of order) {
     for (const key of REGISTRY[country].keysFor(code)) {
       const id = await codeToId(country, key);

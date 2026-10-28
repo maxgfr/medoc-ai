@@ -39,6 +39,8 @@ export async function writeIndex(
     const med = Medicine.parse(m);
     const key = shardOf(med.id);
     const shard = medShards.get(key) ?? {};
+    // One id, one medicine: a duplicate would hide a record and break the app's search index.
+    if (shard[med.id]) throw new Error(`${country}: two medicines with the id ${med.id}`);
     shard[med.id] = med;
     medShards.set(key, shard);
   }

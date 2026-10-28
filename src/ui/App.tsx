@@ -1,6 +1,9 @@
 /** The shell: a top bar with the profile, the page, a bottom bar on phones. */
 import { useEffect } from "react";
-import { useT } from "../i18n/react";
+import type { Manifest } from "../../shared/schema";
+import { isOld } from "../data/repo";
+import { formatDate } from "../i18n";
+import { useLocale, useSetLocale, useT } from "../i18n/react";
 import { useInAppReminders } from "../reminders/notify";
 import { Alerts } from "./Alerts";
 import { Cabinet } from "./Cabinet";
@@ -112,7 +115,12 @@ function Page({ route }: { route: Route }) {
 export function App() {
   const t = useT();
   const route = useRoute();
-  const { ready, active, profiles, concerns, online } = useApp();
+  const { ready, active, profiles, concerns, online, manifests } = useApp();
+  const locale = useLocale();
+  const setLocale = useSetLocale();
+  const other = locale === "fr" ? "en" : "fr";
+  // An index that stopped updating says so on every page, with its date.
+  const old = (Object.values(manifests) as Manifest[]).filter((m) => m.stale || isOld(m));
   useInAppReminders();
 
   useEffect(() => {
@@ -130,6 +138,15 @@ export function App() {
           {t("common.appName")}
         </a>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setLocale(other)}
+            lang={other}
+            aria-label={other === "en" ? "Switch to English" : "Passer en français"}
+            className="rounded-lg px-2 py-1.5 text-xs font-bold tracking-wide text-stone-600 uppercase hover:bg-stone-200 dark:text-stone-300 dark:hover:bg-stone-800"
+          >
+            {other}
+          </button>
           <a
             href={href({ name: "search" })}
             className="rounded-lg p-2 text-stone-600 hover:bg-stone-200 dark:text-stone-300 dark:hover:bg-stone-800"
@@ -167,6 +184,19 @@ export function App() {
           className="bg-amber-100 px-4 py-1.5 text-center text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
         >
           {t("common.offline")}
+        </div>
+      ) : null}
+      {old.length ? (
+        <div
+          role="status"
+          className="bg-amber-100 px-4 py-1.5 text-center text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
+        >
+          <a href={href({ name: "settings" })} className="hover:underline">
+            {t("common.staleData", {
+              countries: old.map((m) => t(`country.${m.country}`)).join(", "),
+              date: formatDate(locale, old.map((m) => m.generatedAt).sort()[0] ?? ""),
+            })}
+          </a>
         </div>
       ) : null}
       <main id="main" className="flex-1 px-4 pt-5 pb-28">

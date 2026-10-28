@@ -88,3 +88,12 @@ export function sectionsOf(html: string, doc: DocKind): DocSection[] {
 export function parseExtrait(html: string): DocSection[] {
   return [...sectionsOf(html, "notice"), ...sectionsOf(html, "rcp")];
 }
+
+/** The date ANSM last updated the leaflet ("ANSM - Mis à jour le : 25/08/2025"), as yyyy-mm-dd. */
+export function textDate(html: string): string | undefined {
+  const body = panel(html, PANELS.notice) ?? panel(html, PANELS.rcp) ?? "";
+  const m = /Mis\s+à\s+jour\s+le\s*:?\s*(\d{2})\/(\d{2})\/(\d{4})/i.exec(
+    htmlToText(body.slice(0, 20_000)),
+  );
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : undefined;
+}

@@ -7,6 +7,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { writeIndex } from "../indexer/write";
+import { parseGermany } from "../shared/countries/de/parse";
 import { parseExtrait } from "../shared/countries/fr/notice";
 import { BDPM_FILES, type BdpmFile, parseBdpm } from "../shared/countries/fr/parse";
 import { parseNdc } from "../shared/countries/us/parse";
@@ -52,5 +53,24 @@ export default async function setup() {
     search: "live",
     docs: 0,
   });
-  writeFileSync(join(DATA, "countries.json"), JSON.stringify(["fr", "us"]));
+  const de = join(import.meta.dirname, "../shared/countries/de/fixtures");
+  const germany = parseGermany(
+    {
+      shortages: decodeBytes(readFileSync(join(de, "shortages.csv"))),
+      lists: [decodeBytes(readFileSync(join(de, "kinder.csv")))],
+      ema: JSON.parse(readFileSync(join(de, "ema.json"), "utf8")),
+    },
+    "2026-10-28",
+  );
+  await writeIndex(DATA, "de", {
+    meds: germany.meds,
+    codes: germany.codes,
+    alerts: germany.alerts,
+    sources: [],
+    attribution: "Test BfArM",
+    licence: "test",
+    search: "static",
+    docs: 0,
+  });
+  writeFileSync(join(DATA, "countries.json"), JSON.stringify(["fr", "de", "us"]));
 }

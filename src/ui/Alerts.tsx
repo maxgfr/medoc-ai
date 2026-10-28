@@ -1,11 +1,11 @@
 import { useState } from "react";
+import type { Manifest } from "../../shared/schema";
 import type { Concern } from "../alerts/match";
-import { manifest } from "../data/repo";
+import { countryModule } from "../countries/registry";
 import { setKv } from "../db/db";
 import { formatDate } from "../i18n";
 import { useLocale, useT } from "../i18n/react";
 import { askPermission, REMINDERS_KEY } from "../reminders/notify";
-import { useLoad } from "./hooks";
 import { Avatar, Badge, Button, Empty, ExternalLink, Notice, PageTitle } from "./kit";
 import { href } from "./router";
 import { useApp } from "./state";
@@ -69,11 +69,10 @@ export function ConcernRow({
 export function Alerts() {
   const t = useT();
   const locale = useLocale();
-  const { concerns, profiles, country } = useApp();
+  const { concerns, profiles, manifests } = useApp();
   const [perm, setPerm] = useState(() =>
     typeof Notification === "undefined" ? "denied" : Notification.permission,
   );
-  const m = useLoad(() => manifest(country), [country]);
 
   async function enable() {
     const p = await askPermission();
@@ -104,11 +103,14 @@ export function Alerts() {
           {t("alert.notify")}
         </Button>
       )}
-      {m.status === "ready" && m.value ? (
-        <p className="text-xs text-stone-500">
-          {t("alert.checked", { date: formatDate(locale, m.value.generatedAt) })}
-        </p>
-      ) : null}
+      <ul className="grid gap-0.5 text-xs text-stone-500">
+        {(Object.values(manifests) as Manifest[]).map((m) => (
+          <li key={m.country}>
+            {countryModule(m.country).flag}{" "}
+            {t("alert.checked", { date: formatDate(locale, m.generatedAt, "time") })}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -13,6 +13,7 @@ describe("routes", () => {
     },
     { name: "newItem", country: "us", med: "71309-001", scan: { code: "7130900105" } },
     { name: "newTreatment", country: "fr", med: "60234100", item: "i1" },
+    { name: "med", country: "de", id: "pzn-00240365", scan: { code: "00240365", lot: "CH4711" } },
     { name: "today", date: "2026-10-28" },
     { name: "interactions" },
   ];
@@ -20,7 +21,7 @@ describe("routes", () => {
     for (const r of routes) expect(parseRoute(href(r))).toEqual(r);
   });
   test("anything else is home", () => {
-    expect(parseRoute("#/med/de/123")).toEqual({ name: "home" });
+    expect(parseRoute("#/med/it/123")).toEqual({ name: "home" });
     expect(parseRoute("#/nope")).toEqual({ name: "home" });
   });
 });

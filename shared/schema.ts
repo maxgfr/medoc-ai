@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 
-export const COUNTRIES = ["fr", "us", "uk"] as const;
+export const COUNTRIES = ["fr", "de", "us", "uk"] as const;
 export const CountryId = z.enum(COUNTRIES);
 export type CountryId = z.infer<typeof CountryId>;
 
@@ -18,7 +18,7 @@ export const Substance = z.object({
 export type Substance = z.infer<typeof Substance>;
 
 export const Pack = z.object({
-  /** The key the pack's barcode resolves to: CIP13 (FR), dashless NDC-10 (US), GTIN-13 (UK). */
+  /** The key the pack's barcode resolves to: CIP13 (FR), PZN (DE), dashless NDC-10 (US), GTIN-13 (UK). */
   code: z.string(),
   /** Other codes printed on older boxes (CIP7). */
   altCodes: z.array(z.string()).optional(),
@@ -41,6 +41,10 @@ export const LinkKind = z.enum([
   "dailymed",
   "mhra",
   "emc",
+  /** A search by pack code on a reference site (Gelbe Liste for a PZN). */
+  "lookup",
+  /** The authority's shortage database (BfArM). */
+  "shortages",
 ]);
 export type LinkKind = z.infer<typeof LinkKind>;
 
@@ -64,6 +68,8 @@ export const Medicine = z.object({
   /** Authorisation status, as published. */
   status: z.string().optional(),
   marketed: z.boolean(),
+  /** false when the source does not say whether it is marketed (`marketed` is then a guess). */
+  marketKnown: z.boolean().optional(),
   authorisedAt: z.string().optional(),
   substances: z.array(Substance),
   packs: z.array(Pack),
@@ -115,7 +121,10 @@ export type DocSection = z.infer<typeof DocSection>;
 
 export const Docs = z.object({
   id: z.string(),
+  /** When the text was read from the source. */
   fetchedAt: z.string(),
+  /** When the authority last updated the text, when it says so (yyyy-mm-dd). */
+  updatedAt: z.string().optional(),
   sections: z.array(DocSection),
 });
 export type Docs = z.infer<typeof Docs>;

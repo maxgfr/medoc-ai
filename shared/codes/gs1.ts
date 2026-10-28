@@ -3,8 +3,10 @@
  * identifiers (AI) in any order: (01) the GTIN-14, (17) the expiry YYMMDD, (10)
  * the lot, (21) the serial number. Variable-length fields end with a GS
  * character (ASCII 29), or FNC1 as scanners report it. Linear codes carry only
- * the GTIN (EAN-13, UPC-A). People type codes too: "(01)034…(17)…", a CIP13,
- * a US NDC with dashes.
+ * the GTIN (EAN-13, UPC-A). German packs carry an IFA DataMatrix instead
+ * (ISO/IEC 15434 format 06: "[)>␞06␝9N11…␝1T lot␝D expiry␝S serial"), whose PPN
+ * holds the PZN, and a Code 39 PZN barcode ("-12345678"). People type codes
+ * too: "(01)034…(17)…", a CIP13, a US NDC with dashes, a PZN.
  */
 
 export interface ParsedCode {
@@ -12,8 +14,10 @@ export interface ParsedCode {
   raw: string;
   /** GTIN-13 when the code has a GTIN (GTIN-14 with its leading 0 dropped, UPC-A padded). */
   gtin?: string;
-  /** Digits that are not a GTIN but may still identify a pack: a CIP7, a typed NDC. */
+  /** Digits that are not a GTIN but may still identify a pack: a CIP7, a typed NDC, a PZN. */
   digits?: string;
+  /** German Pharmazentralnummer, from an IFA DataMatrix (PPN) or a PZN barcode. */
+  pzn?: string;
   /** ISO date (YYYY-MM-DD). */
   expiry?: string;
   lot?: string;
@@ -108,10 +112,53 @@ function elements(data: string): Map<string, string> | null {
   return out.size ? out : null;
 }
 
+/** The PZN check digit: modulo 11 of the first seven digits weighted 1 to 7. */
+export function validPzn(pzn: string): boolean {
+  if (!/^\d{8}$/.test(pzn)) return false;
+  const d = [...pzn].map(Number);
+  let sum = 0;
+  for (let i = 0; i < 7; i++) sum += (d[i] ?? 0) * (i + 1);
+  return sum % 11 === d[7];
+}
+
+const RS = "\u001e";
+
+/** ISO/IEC 15434 format 06 with ASC MH10.8.2 data identifiers, as on German packs (IFA). */
+function fromIfa(raw: string, now: Date): ParsedCode | null {
+  const EOT = "\u0004";
+  const data = raw.replace(/<RS>/gi, RS).replace(/<GS>/gi, GS).replace(/<EOT>/gi, EOT);
+  const body =
+    data
+      .replace(/^\[\)>/, "")
+      .split(RS)
+      .find((x) => x.startsWith("06")) ?? "";
+  const out: ParsedCode = { raw };
+  for (const part of body.slice(2).split(GS)) {
+    const m = /^(9N|8P|1T|D|S)(.*)$/.exec(part.endsWith(EOT) ? part.slice(0, -1) : part);
+    if (!m) continue;
+    const id = m[1];
+    const value = m[2] ?? "";
+    if (id === "9N" && /^11\d{10}$/.test(value)) out.pzn = value.slice(2, 10);
+    else if (id === "8P" && /^\d{14}$/.test(value)) {
+      const g = gtin13(value);
+      if (g) out.gtin = g;
+    } else if (id === "1T" && value) out.lot = value;
+    else if (id === "D") {
+      const e = expiryDate(value, now);
+      if (e) out.expiry = e;
+    } else if (id === "S" && value) out.serial = value;
+  }
+  return out.pzn || out.gtin ? out : null;
+}
+
 /** Everything a scanned or typed code says, or null when it is not a medicine code. */
 export function parseCode(input: string, now = new Date()): ParsedCode | null {
   const raw = input.trim();
   if (!raw) return null;
+  if (raw.startsWith("[)>")) return fromIfa(raw, now);
+  // A PZN barcode (Code 39 "-12345678") or a typed "PZN 1234567".
+  const pzn = /^(?:PZN[\s:-]*|-)(\d{7,8})$/i.exec(raw)?.[1]?.padStart(8, "0");
+  if (pzn && validPzn(pzn)) return { raw, pzn };
   // Symbology identifiers some scanners put first: ]d2 (GS1 DataMatrix), ]C1 (GS1-128), ]Q3, ]e0.
   let data = raw.replace(/^\][A-Za-z]\d/, "").replace(/<GS>|\\x1d/gi, GS);
   if (data.startsWith(GS)) data = data.slice(1);

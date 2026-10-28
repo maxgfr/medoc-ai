@@ -19,6 +19,8 @@ export const fr = {
     no: "Non",
     optional: "facultatif",
     offline: "Vous êtes hors ligne : ce qui a déjà été ouvert reste disponible.",
+    staleData:
+      "{countries} : données pas mises à jour depuis le {date}. Détails dans les Réglages.",
     skip: "Aller au contenu",
     navHome: "Accueil",
     navScan: "Scanner",
@@ -33,10 +35,12 @@ export const fr = {
   },
   country: {
     fr: "France",
+    de: "Allemagne",
     us: "États-Unis",
     uk: "Royaume-Uni",
     label: "Pays",
     unavailable: "Aucun index publié",
+    all: "Tous les pays",
   },
   home: {
     greeting: "Bonjour {name}",
@@ -68,6 +72,8 @@ export const fr = {
     looking: "Recherche de {code}…",
     notMedicine: "Ce code n'est pas un code de médicament.",
     notFound: "Aucun médicament n'a ce code dans l'index {countries}.",
+    pznNotFound:
+      "Le PZN {pzn} n'est pas dans les données ouvertes allemandes, qui ne couvrent qu'une partie des médicaments (le registre complet du BfArM ne peut pas être redistribué).",
     photo: "Lire la boîte avec l'IA",
     photoHint:
       "Pas de code lisible ? Photographiez la boîte : votre modèle lit le nom, et vous choisissez le bon médicament.",
@@ -84,7 +90,8 @@ export const fr = {
     placeholder: "Médicament ou substance",
     empty: "Aucun médicament ne correspond.",
     notMarketed: "Non commercialisé",
-    live: "Recherche sur openFDA",
+    live: "Inclut des résultats cherchés en direct sur openFDA",
+    liveHint: "Appuyez sur Entrée pour chercher aussi : {countries}",
     hint: "Tapez au moins 2 lettres.",
     noIndex: "Pas encore d'index pour ce pays.",
   },
@@ -123,6 +130,8 @@ export const fr = {
     linkDailymed: "Notice sur DailyMed",
     linkMhra: "Chercher sur MHRA Products",
     linkEmc: "Chercher sur l'electronic medicines compendium",
+    linkLookup: "Chercher le PZN sur la Gelbe Liste",
+    linkShortages: "Base des ruptures du BfArM",
     tabInfo: "Informations",
     tabLeaflet: "Notice",
     tabSummary: "Résumé clair",
@@ -139,7 +148,9 @@ export const fr = {
     docsError: "La notice n'a pas pu être chargée.",
     docNotice: "Notice",
     docRcp: "Résumé des caractéristiques du produit",
-    docUpdated: "Texte du {date}",
+    docUpdated: "Texte mis à jour par l'autorité le {date}",
+    docChecked: "vérifié à la source le {date}",
+    dataAsOf: "Données du {date}",
     source: "Source : {source}",
     alertsTitle: "Alertes",
   },
@@ -165,7 +176,7 @@ export const fr = {
       one: "{count} nouvelle alerte sur vos médicaments",
       other: "{count} nouvelles alertes sur vos médicaments",
     },
-    checked: "Vérifié avec l'index du {date}.",
+    checked: "Index du {date}",
   },
   cabinet: {
     title: "Armoire",
@@ -312,7 +323,8 @@ export const fr = {
     title: "Réglages",
     language: "Langue",
     country: "Pays par défaut",
-    countryHint: "Un code scanné trouve son pays tout seul ; celui-ci sert aux recherches.",
+    countryHint:
+      "Là où cherchent les recherches. Une boîte scannée est cherchée dans tous les pays.",
     aiTitle: "Modèle d'IA",
     aiIntro:
       "Apportez votre propre modèle. Les appels partent de ce navigateur vers votre fournisseur : il n'y a pas de serveur à nous.",
@@ -356,7 +368,10 @@ export const fr = {
     local: "Index importé sur cet appareil",
     builtOn: "Construit le {date}",
     counts: "{meds} médicaments · {packs} codes de boîtes · {alerts} alertes · {docs} notices",
-    stale: "La dernière mise à jour a échoué ; voici l'index précédent.",
+    stale:
+      "Cet index n'est plus à jour : sa dernière mise à jour a échoué ou n'a pas tourné. C'est tout de même le dernier publié.",
+    localNotUpdated:
+      "Un index importé sur cet appareil ne se met pas à jour tout seul : revenez à l'index publié pour avoir les mises à jour quotidiennes.",
     refresh: "Vérifier les mises à jour",
     upToDate: "À jour.",
     importBdpm: "Importer les fichiers de la BDPM",

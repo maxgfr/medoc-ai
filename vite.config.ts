@@ -85,10 +85,13 @@ export default defineConfig({
             options: { cacheName: "medoc-index", networkTimeoutSeconds: 4 },
           },
           {
+            // The index itself: always the published version when online (a revalidation costs
+            // a 304), the last copy read when offline.
             urlPattern: /\/data\/[a-z]{2}\/(search\.json|codes\/|meds\/|docs\/)/,
-            handler: "StaleWhileRevalidate",
+            handler: "NetworkFirst",
             options: {
               cacheName: "medoc-data",
+              networkTimeoutSeconds: 6,
               expiration: { maxEntries: 2000 },
               cacheableResponse: { statuses: [200] },
             },

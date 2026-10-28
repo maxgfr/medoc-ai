@@ -1,9 +1,18 @@
 # Builds every country's medicine index from the official open data, then the
-# app, and publishes both on GitHub Pages. Daily, on push and on demand.
+# app, and publishes both on GitHub Pages. Twice a day, on push and on demand.
 #
-# The raw downloads, the leaflet scraping state and the previous index live in
-# the Actions cache between runs: leaflets are scraped a few thousand at a time,
-# and a source that fails keeps yesterday's index (flagged as stale).
+# Keeping the data current:
+# - every run downloads every source again; nothing is reused but the leaflet
+#   texts, which are re-read from the BDPM every 2 days (marketed medicines)
+#   or 7 days (the others);
+# - the previous index, the raw downloads and the leaflet state live in the
+#   Actions cache between runs, with a copy in the `data-backup` release in
+#   case the cache is evicted;
+# - a source that fails, or a new index that lost more than 15% of its
+#   medicines, keeps the previous index (marked stale, which the app shows),
+#   and the run still publishes it but ends in failure, so GitHub notifies;
+# - scheduled workflows stop after 60 days without activity on the
+#   repository: each scheduled run re-enables this one.
 name: Index and deploy
 
 on:
@@ -11,19 +20,21 @@ on:
     branches: [main]
   schedule:
     - cron: "17 4 * * *"
+    - cron: "17 16 * * *"
   workflow_dispatch:
     inputs:
       country:
-        description: "fr, us, uk or all"
+        description: "fr, de, us, uk or all"
         default: all
       docs_minutes:
-        description: "Minutes spent scraping French leaflets"
+        description: "Minutes spent reading French leaflets"
         default: "45"
 
 permissions:
-  contents: read
+  contents: write # the data-backup release
   pages: write
   id-token: write
+  actions: write # re-enable the schedule
 
 concurrency:
   group: pages
@@ -33,6 +44,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    outputs:
+      stale: ${{ steps.index.outputs.stale }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -44,6 +60,7 @@ jobs:
       - run: bun run test
 
       - name: Restore the previous index
+        id: restore
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -52,15 +69,26 @@ jobs:
           key: index-${{ github.run_id }}
           restore-keys: index-
 
+      - name: Restore from the backup release when the cache is gone
+        if: steps.restore.outputs.cache-matched-key == ''
+        run: |
+          if gh release download data-backup --pattern index.tar.gz --dir /tmp; then
+            tar -xzf /tmp/index.tar.gz
+            echo "Restored the index from the data-backup release." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No backup yet: building from scratch." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Build the index
+        id: index
         run: >-
           bun run index
           --country "${COUNTRY}"
-          --docs-limit 6000
+          --docs-limit 12000
           --docs-minutes "${DOCS_MINUTES}"
         env:
           COUNTRY: ${{ inputs.country || 'all' }}
-          # Pushes publish quickly; the daily run spends time on leaflets.
+          # Pushes publish quickly; scheduled runs spend time on leaflets.
           DOCS_MINUTES: ${{ inputs.docs_minutes || (github.event_name == 'schedule' && '45') || '8' }}
           TRUD_API_KEY: ${{ secrets.TRUD_API_KEY }}
 
@@ -73,13 +101,29 @@ jobs:
             public/data
           key: index-${{ github.run_id }}
 
+      - name: Back the index up in a release
+        if: github.ref == 'refs/heads/main'
+        run: |
+          tar -czf /tmp/index.tar.gz public/data .cache/fr/docs-state.json 2>/dev/null || tar -czf /tmp/index.tar.gz public/data
+          gh release view data-backup >/dev/null 2>&1 || gh release create data-backup --prerelease --latest=false \
+            --title "Index backup" --notes "The last medicine index built by the Index and deploy workflow, restored when the Actions cache is gone. Not an app release."
+          gh release upload data-backup /tmp/index.tar.gz --clobber
+
       - run: bun run build
-      - name: Index size
-        run: du -sh dist dist/data/* | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Index summary
+        run: |
+          du -sh dist dist/data/* | tee -a "$GITHUB_STEP_SUMMARY"
+          for m in dist/data/*/manifest.json; do
+            jq -r '"\(.country): \(.counts.medicines) medicines, \(.counts.docs) leaflets, built \(.generatedAt)\(if .stale then " — STALE: " + .stale else "" end)"' "$m"
+          done | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist
+
+      - name: Keep the schedule alive
+        if: github.event_name == 'schedule'
+        run: gh api -X PUT "repos/${GH_REPO}/actions/workflows/pages.yml/enable"
 
   deploy:
     needs: build
@@ -90,3 +134,15 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  # Published anyway, but a country left on its previous index fails the run, so GitHub notifies.
+  freshness:
+    needs: [build, deploy]
+    if: needs.build.outputs.stale != ''
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::Index not updated: ${STALE}"
+          exit 1
+        env:
+          STALE: ${{ needs.build.outputs.stale }}

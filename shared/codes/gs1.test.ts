@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { expiryDate, parseCode, validCheckDigit } from "./gs1";
+import { expiryDate, parseCode, validCheckDigit, validPzn } from "./gs1";
 
 const GS = "\u001d";
 const NOW = new Date("2026-10-28T00:00:00Z");
@@ -66,5 +66,30 @@ describe("parseCode", () => {
   test("text that is no code", () => {
     expect(parseCode("")).toBeNull();
     expect(parseCode("hello")).toBeNull();
+  });
+});
+
+describe("German codes", () => {
+  test("PZN check digit (real PZNs from the BfArM lists)", () => {
+    expect(validPzn("00240365")).toBe(true);
+    expect(validPzn("00658834")).toBe(true);
+    expect(validPzn("00240366")).toBe(false);
+  });
+
+  test("an IFA DataMatrix: the PZN from its PPN, lot, expiry and serial", () => {
+    const raw = `[)>\u001e06${GS}9N110024036552${GS}1TCH4711${GS}D270400${GS}S12345ABC\u001e\u0004`;
+    expect(parseCode(raw, NOW)).toEqual({
+      raw,
+      pzn: "00240365",
+      lot: "CH4711",
+      expiry: "2027-04-30",
+      serial: "12345ABC",
+    });
+  });
+
+  test("a Code 39 PZN barcode and a typed PZN", () => {
+    expect(parseCode("-00240365")).toEqual({ raw: "-00240365", pzn: "00240365" });
+    expect(parseCode("PZN 00240365")?.pzn).toBe("00240365");
+    expect(parseCode("00240365")).toEqual({ raw: "00240365", digits: "00240365" });
   });
 });

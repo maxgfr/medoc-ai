@@ -18,7 +18,8 @@ export function getDetector(): BarcodeDetector {
       },
     });
     detector = new BarcodeDetector({
-      formats: ["data_matrix", "ean_13", "upc_a", "ean_8", "code_128", "upc_e"],
+      // Code 39 carries the German PZN barcode.
+      formats: ["data_matrix", "ean_13", "upc_a", "ean_8", "code_128", "upc_e", "code_39"],
     });
   }
   return detector;

@@ -56,6 +56,9 @@ function build(req: ImportRequest): ImportResponse {
       licence = "Réutilisation libre — conditions de la BDPM";
       break;
     }
+    case "de":
+      // Germany's index is built from several authorities' files; only the Action assembles it.
+      return { ok: false, error: "Germany is indexed by the GitHub Action only." };
     case "us": {
       const json = files.find((f) => f.name.endsWith(".json"));
       if (!json) return { ok: false, error: "drug-ndc-*.json" };

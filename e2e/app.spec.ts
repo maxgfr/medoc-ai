@@ -122,12 +122,49 @@ test("the AI summary goes through the configured model and cites the leaflet", a
   await expect(page.locator("#sec-rcp-4\\.3")).toHaveAttribute("open", "");
 });
 
-test("English interface", async ({ page }) => {
+test("English interface, from the header or Settings", async ({ page }) => {
+  await page.goto("./#/");
+  await page.getByRole("button", { name: "Switch to English" }).click();
+  await expect(page.getByText("Scan a box", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Passer en français" }).click();
+  await expect(page.getByText("Scanner une boîte", { exact: true })).toBeVisible();
   await page.goto("./#/settings");
   await page.getByLabel("Langue").selectOption("en");
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-  await page.goto("./#/");
-  await expect(page.getByText("Scan a box", { exact: true })).toBeVisible();
+});
+
+test("search looks in every country by default, or in the one picked", async ({ page }) => {
+  await page.goto("./#/search?q=ziagen");
+  await expect(page.getByRole("link", { name: /Ziagen 20 mg\/ml/ })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Pays" })).toHaveValue("all");
+  await page.getByRole("combobox", { name: "Pays" }).selectOption("fr");
+  await expect(page.getByText("Aucun médicament ne correspond.")).toBeVisible();
+  await page.getByRole("searchbox").fill("doliprane");
+  await expect(page.getByRole("link", { name: /DOLIPRANE 1000 mg, comprimé/ })).toBeVisible();
+  // The choice is kept, also in Settings.
+  await page.goto("./#/settings");
+  await expect(page.getByRole("combobox", { name: "Pays" })).toHaveValue("fr");
+});
+
+test("a German IFA DataMatrix finds the product by its PZN; an unknown PZN links out", async ({
+  page,
+}) => {
+  await page.goto("./#/scan");
+  const box = page.getByPlaceholder("3400935955838");
+  await box.fill("[)><RS>06<GS>9N110024036552<GS>1TCH4711<GS>D270400<GS>S12345ABC<RS><EOT>");
+  await page.getByRole("button", { name: "Chercher" }).click();
+  await expect(page.getByRole("heading", { name: /Ziagen 20 mg\/ml/ })).toBeVisible();
+  await expect(page.getByText("Lot CH4711 · Expire le 30 avr. 2027")).toBeVisible();
+
+  await page.goto("./#/scan");
+  await box.fill("PZN 01234562");
+  await page.getByRole("button", { name: "Chercher" }).click();
+  await expect(
+    page.getByText(/Le PZN 01234562 n'est pas dans les données ouvertes allemandes/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Chercher le PZN sur la Gelbe Liste" }),
+  ).toHaveAttribute("href", /gelbe-liste\.de\/suche\?term=01234562/);
 });
 
 test("works offline once visited", async ({ page, context }) => {

@@ -5,25 +5,27 @@
  */
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { type ParsedCode, parseCode } from "../../shared/codes/gs1";
-import type { CountryId } from "../../shared/schema";
+import { gelbeListeUrl } from "../../shared/countries/de/parse";
 import { preparePhoto } from "../ai/image";
 import { type BoxReading, readBox } from "../ai/medical";
 import { loadLlmSettings, savedSettings } from "../ai/settings";
-import { countryModule } from "../countries/registry";
-import { type Hit, searchStatic } from "../data/repo";
+import { germany } from "../countries/de";
+import { countryModule, inScope } from "../countries/registry";
+import { type Hit, searchCountries } from "../data/repo";
 import { formatDate } from "../i18n";
 import { useLocale, useT } from "../i18n/react";
 import { detectIn, getDetector } from "../scan/detector";
 import { resolveCode } from "../scan/resolve";
-import { Button, Field, Icon, Notice, PageTitle, Spinner } from "./kit";
+import { Button, ExternalLink, Field, Icon, Notice, PageTitle, Spinner } from "./kit";
 import { go, href, type ScanInfo } from "./router";
 import { useApp } from "./state";
 
 type Camera = "starting" | "on" | "denied" | "none" | "off";
 
 function infoOf(code: ParsedCode, key?: string): ScanInfo {
+  const c = key || code.gtin || code.pzn;
   return {
-    ...(key || code.gtin ? { code: key ?? code.gtin } : {}),
+    ...(c ? { code: c } : {}),
     ...(code.lot ? { lot: code.lot } : {}),
     ...(code.expiry ? { expiry: code.expiry } : {}),
     ...(code.serial ? { serial: code.serial } : {}),
@@ -33,16 +35,21 @@ function infoOf(code: ParsedCode, key?: string): ScanInfo {
 export function Scan() {
   const t = useT();
   const locale = useLocale();
-  const { country, available } = useApp();
+  const { scope, available } = useApp();
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
   const [camera, setCamera] = useState<Camera>("starting");
   const [torch, setTorch] = useState<boolean | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ tone: "error" | "warn"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    tone: "error" | "warn";
+    text: string;
+    /** For a German PZN the open data does not cover: where to look it up. */
+    lookup?: string;
+  } | null>(null);
   const [manual, setManual] = useState("");
   const [reading, setReading] = useState<BoxReading | null>(null);
-  const [candidates, setCandidates] = useState<{ country: CountryId; hits: Hit[] } | null>(null);
+  const [candidates, setCandidates] = useState<Hit[] | null>(null);
   const handled = useRef(false);
 
   const stop = useCallback(() => {
@@ -53,15 +60,19 @@ export function Scan() {
   const lookup = useCallback(
     async (raw: string) => {
       const code = parseCode(raw);
-      if (!code || (!code.gtin && !code.digits)) {
+      if (!code || (!code.gtin && !code.digits && !code.pzn)) {
         setMessage({ tone: "warn", text: t("scan.notMedicine") });
         handled.current = false;
         return;
       }
-      setBusy(t("scan.looking", { code: code.gtin ?? code.digits ?? raw }));
+      setBusy(
+        t("scan.looking", {
+          code: code.pzn ? `PZN ${code.pzn}` : (code.gtin ?? code.digits ?? raw),
+        }),
+      );
       setMessage(null);
       try {
-        const found = await resolveCode(code, country, available);
+        const found = await resolveCode(code, scope, available);
         if (found) {
           stop();
           go({
@@ -72,12 +83,17 @@ export function Scan() {
           });
           return;
         }
-        setMessage({
-          tone: "warn",
-          text: t("scan.notFound", {
-            countries: available.map((c) => t(`country.${c}`)).join(", "),
-          }),
-        });
+        const pzn = germany.keysFor(code)[0];
+        setMessage(
+          pzn
+            ? { tone: "warn", text: t("scan.pznNotFound", { pzn }), lookup: gelbeListeUrl(pzn) }
+            : {
+                tone: "warn",
+                text: t("scan.notFound", {
+                  countries: available.map((c) => t(`country.${c}`)).join(", "),
+                }),
+              },
+        );
       } catch {
         setMessage({ tone: "error", text: t("common.error") });
       } finally {
@@ -85,7 +101,7 @@ export function Scan() {
         handled.current = false;
       }
     },
-    [country, available, stop, t],
+    [scope, available, stop, t],
   );
 
   useEffect(() => {
@@ -190,7 +206,7 @@ export function Scan() {
       for (const c of read.codes) {
         const code = parseCode(c);
         if (!code) continue;
-        const found = await resolveCode(code, country, available);
+        const found = await resolveCode(code, scope, available);
         if (found) {
           go({
             name: "med",
@@ -207,14 +223,16 @@ export function Scan() {
           return;
         }
       }
+      const countries = inScope(scope, available);
+      const search = (q: string) =>
+        searchCountries(countries, q, {
+          live: true,
+          limit: 8,
+          liveSearch: (c, text) => countryModule(c).liveSearch?.(text),
+        }).then((r) => r.hits);
       const query = [read.name, read.strength].filter(Boolean).join(" ");
-      const mod = countryModule(country);
-      const hits =
-        (await searchStatic(country, query, 8)) ??
-        (mod.liveSearch ? await mod.liveSearch(query) : []);
-      const loose =
-        hits.length || !read.name ? hits : ((await searchStatic(country, read.name, 8)) ?? []);
-      setCandidates({ country, hits: loose });
+      const hits = await search(query);
+      setCandidates(hits.length || !read.name ? hits : await search(read.name));
     } catch (err) {
       setMessage({ tone: "error", text: err instanceof Error ? err.message : t("common.error") });
     } finally {
@@ -284,7 +302,17 @@ export function Scan() {
         ) : null}
       </div>
 
-      {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+      {message ? (
+        <Notice tone={message.tone}>
+          {message.text}
+          {message.lookup ? (
+            <>
+              {" "}
+              <ExternalLink href={message.lookup}>{t("med.linkLookup")}</ExternalLink>
+            </>
+          ) : null}
+        </Notice>
+      ) : null}
 
       <form onSubmit={submitManual} className="card grid gap-3">
         <Field label={t("scan.manual")} hint={t("scan.manualHint")}>
@@ -337,23 +365,25 @@ export function Scan() {
           </p>
         ) : null}
         {candidates ? (
-          candidates.hits.length ? (
+          candidates.length ? (
             <div className="grid gap-1">
               <h3 className="label">{t("scan.candidates")}</h3>
-              {candidates.hits.map((h) => {
+              {candidates.map((h) => {
                 const scan = scanInfoFromReading(reading);
                 return (
                   <a
-                    key={h.id}
+                    key={`${h.country}:${h.id}`}
                     href={href({
                       name: "med",
-                      country: candidates.country,
+                      country: h.country,
                       id: h.id,
                       ...(scan ? { scan } : {}),
                     })}
                     className="rounded-xl border border-stone-200 px-3 py-2 text-sm hover:border-brand-500 dark:border-stone-700"
                   >
-                    <span className="font-medium">{h.name}</span>
+                    <span className="font-medium">
+                      {countryModule(h.country).flag} {h.name}
+                    </span>
                     {h.holder ? (
                       <span className="block text-xs text-stone-500">{h.holder}</span>
                     ) : null}

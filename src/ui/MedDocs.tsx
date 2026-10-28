@@ -19,7 +19,10 @@ export function DocsView({ docs, focus }: { docs: Docs; focus: string | null }) 
   return (
     <div className="grid gap-5">
       <p className="text-xs text-stone-500">
-        {t("med.docUpdated", { date: formatDate(locale, docs.fetchedAt) })}
+        {docs.updatedAt
+          ? `${t("med.docUpdated", { date: formatDate(locale, docs.updatedAt) })} · `
+          : ""}
+        {t("med.docChecked", { date: formatDate(locale, docs.fetchedAt, "time") })}
       </p>
       {groups.map((g) => (
         <section key={g.doc} className="grid gap-2">
