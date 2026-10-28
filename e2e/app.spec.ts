@@ -223,7 +223,7 @@ test("the app says it is the latest version, or that a new one is out", async ({
     }),
   );
   await page.getByRole("button", { name: "Vérifier maintenant" }).click();
-  await expect(page.getByText("Une nouvelle version de Medoc est disponible 9.9.9.")).toBeVisible();
+  await expect(page.getByText("Une nouvelle version de Medoc est disponible.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Passer à la 9.9.9 (abcdef0)" })).toBeVisible();
 });
 

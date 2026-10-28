@@ -411,7 +411,7 @@ export const fr = {
   },
   status: {
     title: "Statut",
-    newVersion: "Une nouvelle version de Medoc est disponible {version}.",
+    newVersion: "Une nouvelle version de Medoc est disponible.",
     update: "Mettre à jour",
     updateTo: "Passer à la {version} ({commit})",
     allCurrent: "Application et données des médicaments à jour",

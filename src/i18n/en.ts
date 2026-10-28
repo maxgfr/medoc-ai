@@ -400,7 +400,7 @@ export const en = {
   },
   status: {
     title: "Status",
-    newVersion: "A new version of Medoc is available {version}.",
+    newVersion: "A new version of Medoc is available.",
     update: "Update",
     updateTo: "Update to {version} ({commit})",
     allCurrent: "App and medicine data up to date",

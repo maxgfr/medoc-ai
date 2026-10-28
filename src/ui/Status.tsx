@@ -18,14 +18,14 @@ const outdated = (m: Manifest) => isOld(m);
 
 export function UpdateBanner() {
   const t = useT();
-  const { latest, published } = useAppStatus();
+  const { latest } = useAppStatus();
   if (latest !== false) return null;
   return (
     <div
       role="status"
       className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-brand-700 px-4 py-2 text-center text-sm text-white dark:bg-brand-600"
     >
-      <span>{t("status.newVersion", { version: published?.version ?? "" })}</span>
+      <span>{t("status.newVersion")}</span>
       <button
         type="button"
         onClick={() => void applyUpdate()}
