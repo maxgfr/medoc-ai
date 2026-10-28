@@ -96,14 +96,27 @@ export function parseNdc(
   json: { results?: NdcRecord[] },
   today = new Date().toISOString().slice(0, 10),
 ): { meds: Medicine[]; codes: Record<string, string> } {
-  const meds: Medicine[] = [];
-  const codes: Record<string, string> = {};
+  // A product NDC can be listed more than once (one record per SPL version): one medicine
+  // each, the marketed and most recent record first, with the packs of all of them.
+  const byId = new Map<string, { med: Medicine; start: string }>();
   for (const r of json.results ?? []) {
     const m = ndcMedicine(r, today);
     if (!m) continue;
-    meds.push(m);
-    for (const p of m.packs) codes[p.code] = m.id;
+    const start = r.marketing_start_date ?? "";
+    const have = byId.get(m.id);
+    if (!have) {
+      byId.set(m.id, { med: m, start });
+      continue;
+    }
+    const newer = Number(m.marketed) - Number(have.med.marketed) || start.localeCompare(have.start);
+    const [keep, other] = newer > 0 ? [m, have.med] : [have.med, m];
+    for (const p of other.packs) if (!keep.packs.some((q) => q.code === p.code)) keep.packs.push(p);
+    keep.marketed ||= other.marketed;
+    byId.set(m.id, { med: keep, start: newer > 0 ? start : have.start });
   }
+  const meds = [...byId.values()].map((x) => x.med);
+  const codes: Record<string, string> = {};
+  for (const m of meds) for (const p of m.packs) codes[p.code] = m.id;
   return { meds, codes };
 }
 
