@@ -10,7 +10,7 @@
  */
 import { validPzn } from "../../codes/gs1";
 import type { Alert, Medicine, Pack, Substance } from "../../schema";
-import { csvRows, isoDate } from "../../text";
+import { csvRows, decodeEntities, isoDate } from "../../text";
 
 export const SHORTAGES_CSV =
   "https://anwendungen.pharmnet-bund.de/lieferengpassmeldungen/public/csv";
@@ -237,6 +237,9 @@ export function parseGermany(
       .filter(Boolean);
     const authorisedAt = isoDate(e.marketing_authorisation_date);
     const pi = e.medicine_url ? germanProductInfoUrl(e.medicine_url) : undefined;
+    // Some entries have a placeholder for an indication: only real text becomes a document.
+    const indication = decodeEntities(e.therapeutic_indication ?? "").trim();
+    const hasText = indication.length > 40;
     meds.push({
       id,
       country: "de",
@@ -256,10 +259,10 @@ export function parseGermany(
         ...(pi ? [{ kind: "notice" as const, url: pi }] : []),
         ...(e.medicine_url ? [{ kind: "epar" as const, url: e.medicine_url }] : []),
       ],
-      docs: e.therapeutic_indication ? "static" : "none",
+      docs: hasText ? "static" : "none",
       ref: e.ema_product_number,
     });
-    if (e.therapeutic_indication) indications[id] = e.therapeutic_indication;
+    if (hasText) indications[id] = indication;
   }
 
   return { meds, codes, alerts, indications };

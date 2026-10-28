@@ -8,7 +8,7 @@ import type { DocSection } from "../../shared/schema";
 import { createTranslator } from "../i18n";
 import { AiError, aiError, type CallContext } from "./call";
 import { buildContext, interactionPriority, validCitations } from "./context";
-import { ask, interactions, readBox, summarize } from "./medical";
+import { askStream, interactions, readBox, summarize } from "./medical";
 
 const settings: LlmSettings = {
   apiKey: "sk-test-123456",
@@ -36,6 +36,46 @@ function answering(json: unknown) {
     },
   });
   return { model, prompts };
+}
+
+/** A model streaming `words`, then finishing for `finish` (none: the stream is cut), as in calorie-ai-tracker. */
+function streaming(words: string[], finish?: "stop" | "length", stopper?: AbortController) {
+  const prompts: unknown[] = [];
+  const state: { model: MockLanguageModelV4; prompts: unknown[]; finish?: string } = {
+    prompts,
+    ...(finish ? { finish } : {}),
+    model: new MockLanguageModelV4({
+      doStream: async (options) => {
+        prompts.push(options.prompt);
+        return {
+          stream: new ReadableStream({
+            async start(c) {
+              c.enqueue({ type: "text-start", id: "1" });
+              for (const delta of words) c.enqueue({ type: "text-delta", id: "1", delta });
+              if (stopper) {
+                // The person stops once the first words are on screen.
+                setTimeout(() => stopper.abort(), 20);
+                return;
+              }
+              c.enqueue({ type: "text-end", id: "1" });
+              if (finish) {
+                c.enqueue({
+                  type: "finish",
+                  finishReason: { unified: finish, raw: finish },
+                  usage: {
+                    inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+                    outputTokens: { total: 1, text: 1, reasoning: 0 },
+                  },
+                });
+              }
+              c.close();
+            },
+          }),
+        };
+      },
+    }),
+  };
+  return state;
 }
 
 const caps = (vision: boolean) =>
@@ -101,13 +141,66 @@ describe("calls", () => {
     expect(JSON.stringify(prompts[0])).toContain("Antivitamines K");
   });
 
-  test("question with history", async () => {
-    const { model, prompts } = answering({ answer: "Non.", found: true, citations: ["rcp-4.6"] });
-    const out = await ask(ctx(model), "en", doliprane, "Pregnant?", [
-      { question: "Max dose?", answer: "4 g" },
-    ]);
-    expect(out).toMatchObject({ answer: "Non.", found: true, citations: ["rcp-4.6"] });
-    expect(JSON.stringify(prompts[0])).toContain("Max dose?");
+  test("a question: the answer streams in Markdown, cited sections are checked", async () => {
+    const { model, prompts, finish } = streaming(
+      [
+        "**Non** pendant la grossesse sans avis [rcp-4.6].",
+        "\n\n- Dose max : 4 g [notice-3] [rcp-99.9]",
+      ],
+      "stop",
+    );
+    const seen: string[] = [];
+    const out = await askStream(
+      ctx(model),
+      "fr",
+      doliprane,
+      "Enceinte ?",
+      [{ question: "Max ?", answer: "4 g" }],
+      (text) => seen.push(text),
+    );
+    expect(seen.at(-1)).toBe(out.text);
+    expect(seen.length).toBe(2);
+    expect(out.text).toStartWith("**Non**");
+    expect(out.citations).toEqual(["rcp-4.6", "notice-3"]);
+    expect(out.end).toBeUndefined();
+    expect(JSON.stringify(prompts[0])).toContain("Max ?");
+    expect(JSON.stringify(prompts[0])).toContain("Markdown");
+    expect(finish).toBe("stop");
+  });
+
+  test("an answer cut by the length limit says so; a stopped one keeps what came", async () => {
+    const cut = await askStream(
+      ctx(streaming(["Début"], "length").model),
+      "fr",
+      doliprane,
+      "?",
+      [],
+      () => {},
+    );
+    expect(cut).toMatchObject({ text: "Début", end: "length" });
+    const noFinish = await askStream(
+      ctx(streaming(["Début"]).model),
+      "fr",
+      doliprane,
+      "?",
+      [],
+      () => {},
+    );
+    expect(noFinish.end).toBe("truncated");
+    const controller = new AbortController();
+    const stopped = await askStream(
+      {
+        ...ctx(streaming(["Début ", "suite"], undefined, controller).model),
+        signal: controller.signal,
+      },
+      "fr",
+      doliprane,
+      "?",
+      [],
+      () => {},
+    );
+    expect(stopped.end).toBe("stopped");
+    expect(stopped.text).toStartWith("Début");
   });
 
   test("interactions between medicines", async () => {

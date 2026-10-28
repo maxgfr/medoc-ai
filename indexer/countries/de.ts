@@ -9,7 +9,7 @@ import {
   SHORTAGES_PAGE,
 } from "../../shared/countries/de/parse";
 import { Docs } from "../../shared/schema";
-import { decodeBytes, decodeEntities } from "../../shared/text";
+import { decodeBytes } from "../../shared/text";
 import { download, emptyDir, get, log } from "../io";
 import type { CountryIndex } from "../write";
 import { EMA_URL, loadEma } from "./ema";
@@ -46,7 +46,7 @@ export async function indexGermany(ctx: IndexerContext): Promise<CountryIndex> {
           doc: "rcp",
           title: "Therapeutic indication (EMA, English)",
           level: 1,
-          text: decodeEntities(text),
+          text,
         },
       ],
     });

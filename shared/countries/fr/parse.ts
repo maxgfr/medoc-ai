@@ -265,5 +265,12 @@ export function parseBdpm(
     });
   }
 
-  return { meds, codes, alerts };
+  // The files are not always consistent with each other: a pack or an alert can name a CIS that
+  // CIS_bdpm no longer has. A code would then open a medicine that does not exist; leave them out.
+  const known = new Set(meds.map((m) => m.id));
+  for (const [code, cis] of Object.entries(codes)) if (!known.has(cis)) delete codes[code];
+  const current = alerts
+    .map((a) => ({ ...a, medIds: a.medIds.filter((id) => known.has(id)) }))
+    .filter((a) => a.medIds.length);
+  return { meds, codes, alerts: current };
 }

@@ -8,6 +8,7 @@ import { ConcernRow } from "./Alerts";
 import { useLoad } from "./hooks";
 import { Badge, Icon } from "./kit";
 import { go, href } from "./router";
+import { StatusLine } from "./Status";
 import { useApp, useMine } from "./state";
 
 export function Home() {
@@ -154,6 +155,7 @@ export function Home() {
         </section>
       ) : null}
 
+      <StatusLine />
       <p className="text-xs text-stone-500 dark:text-stone-400">{t("common.disclaimer")}</p>
     </div>
   );

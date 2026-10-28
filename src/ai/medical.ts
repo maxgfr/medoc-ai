@@ -1,13 +1,22 @@
 /**
  * The three ways the app asks a model about leaflets: a plain-language
- * summary, a question, the interactions between someone's medicines. Answers
- * come back structured and cite the sections they rely on; the app shows the
+ * summary, a question, the interactions between someone's medicines. The
+ * summary and the interactions come back structured; a question is answered in
+ * Markdown, streamed. All cite the sections they rely on; the app shows the
  * section titles and keeps the medical disclaimer on screen.
  */
-import { languageName } from "llm-connect";
+import { type ModelMessage, streamText } from "ai";
+import {
+  callOptions,
+  languageName,
+  loadModel,
+  providerKindOf,
+  type StopReason,
+  stopReasonOf,
+} from "llm-connect";
 import { z } from "zod";
 import type { Locale } from "../i18n";
-import { type CallContext, documentBudget, structured } from "./call";
+import { AiError, aiError, type CallContext, documentBudget, preflight, structured } from "./call";
 import {
   buildContext,
   interactionPriority,
@@ -51,46 +60,120 @@ export async function summarize(ctx: CallContext, locale: Locale, doc: SourceDoc
   };
 }
 
-export const Answer = z.object({
-  answer: z.string().describe("The answer, in a few short paragraphs"),
-  found: z.boolean().describe("false when the documents do not answer the question"),
-  citations: z.array(z.string()),
-});
-
 export interface Turn {
   question: string;
   answer: string;
 }
 
-export async function ask(
+/** How an answer ended when it did not end normally. */
+export type AnswerEnd = "length" | "truncated" | "refusal" | "content-filter" | "stopped";
+
+const UNFINISHED: Partial<Record<StopReason, AnswerEnd>> = {
+  length: "length",
+  truncated: "truncated",
+  refusal: "refusal",
+  "content-filter": "content-filter",
+};
+
+/** `[rcp-4.5]`, `[label-drug_interactions]`, `[m2:notice-3]`: a section id between brackets. */
+export const CITATION = /\[((?:m\d+:)?(?:notice|rcp|label|ema)-[\w.-]+)\]/g;
+
+/** The section ids an answer cites, among those the model was given, in order of first use. */
+export function citationsIn(text: string, ids: ReadonlyMap<string, unknown>): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(CITATION)) {
+    const id = m[1] ?? "";
+    if (ids.has(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+export interface AskAnswer {
+  text: string;
+  citations: string[];
+  end?: AnswerEnd;
+  truncated: boolean;
+}
+
+/**
+ * A question about a medicine, answered in Markdown from its documents and
+ * streamed: `onText` gets the whole text so far. Every claim cites its section
+ * as [id]; the app turns those into links. Stopped halfway (ctx.signal), the
+ * answer keeps what came.
+ */
+export async function askStream(
   ctx: CallContext,
   locale: Locale,
   doc: SourceDoc,
   question: string,
-  history: Turn[] = [],
-) {
+  history: Turn[],
+  onText: (text: string) => void,
+): Promise<AskAnswer> {
   const context = buildContext([doc], documentBudget(ctx), summaryPriority);
-  const out = await structured(
-    ctx,
-    Answer,
-    "answer",
-    `${RULES(locale)}\nWhen the documents do not answer, say so (found: false) and suggest asking a pharmacist.`,
-    [
-      { role: "user", content: `${context.text}\n\nThe documents above are about ${doc.medName}.` },
-      { role: "assistant", content: "I have read them." },
-      ...history.slice(-4).flatMap((t) => [
-        { role: "user" as const, content: t.question },
-        { role: "assistant" as const, content: t.answer },
-      ]),
-      { role: "user", content: question },
-    ],
-  );
-  return {
-    ...out,
-    citations: validCitations(out.citations, context),
-    ids: context.ids,
+  const messages: ModelMessage[] = [
+    { role: "user", content: `${context.text}\n\nThe documents above are about ${doc.medName}.` },
+    { role: "assistant", content: "I have read them." },
+    ...history.slice(-4).flatMap((t) => [
+      { role: "user" as const, content: t.question },
+      { role: "assistant" as const, content: t.answer },
+    ]),
+    { role: "user", content: question },
+  ];
+  const capabilities = preflight(ctx, messages);
+  const instructions = [
+    RULES(locale),
+    "Write the answer in Markdown: short paragraphs, bullet lists, **bold** for what matters most. No headings larger than ###, no tables unless they help, no images, no HTML.",
+    "After each statement taken from a section, cite the section by its exact id in square brackets, like [rcp-4.5] or [notice-2]. Cite only ids given in the documents.",
+    "When the documents do not answer the question, say so plainly and suggest asking a pharmacist.",
+  ].join("\n");
+  let text = "";
+  let failure: unknown = null;
+  // A stream that closes without a finish event was cut.
+  let end: AnswerEnd | undefined = "truncated";
+  try {
+    const result = streamText({
+      model: ctx.model ?? (await loadModel(ctx.settings)),
+      instructions,
+      messages,
+      maxRetries: 1,
+      ...(ctx.signal ? { abortSignal: ctx.signal } : {}),
+      ...callOptions(ctx.settings, { capabilities }),
+      // Errors come through the stream below; the default would also log them.
+      onError: () => {},
+    });
+    for await (const part of result.fullStream) {
+      if (part.type === "text-delta") {
+        text += part.text;
+        onText(text);
+      } else if (part.type === "finish") {
+        end =
+          UNFINISHED[
+            stopReasonOf(providerKindOf(ctx.settings), part.finishReason, part.rawFinishReason)
+          ];
+      } else if (part.type === "error") {
+        failure = part.error;
+      }
+    }
+  } catch (err) {
+    failure = err;
+  }
+  const answer = (e: AnswerEnd | undefined): AskAnswer => ({
+    text,
+    citations: citationsIn(text, context.ids),
     truncated: context.truncated,
-  };
+    ...(e ? { end: e } : {}),
+  });
+  if (ctx.signal?.aborted) {
+    if (text.trim()) return answer("stopped");
+    throw new DOMException("Cancelled", "AbortError");
+  }
+  if (failure) throw aiError(failure, ctx);
+  if (!text.trim())
+    throw new AiError(
+      ctx.t(end === "refusal" || end === "content-filter" ? "ai.endRefusal" : "ai.errUnknown"),
+      true,
+    );
+  return answer(end);
 }
 
 export const Severity = z.enum(["contraindicated", "avoid", "caution", "info"]);

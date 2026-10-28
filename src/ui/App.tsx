@@ -18,6 +18,7 @@ import { href, type Route, useRoute } from "./router";
 import { Scan } from "./Scan";
 import { Search } from "./Search";
 import { Settings } from "./Settings";
+import { UpdateBanner } from "./Status";
 import { useApp } from "./state";
 import { Today } from "./Today";
 import { TreatmentEdit } from "./TreatmentEdit";
@@ -186,6 +187,7 @@ export function App() {
           {t("common.offline")}
         </div>
       ) : null}
+      <UpdateBanner />
       {old.length ? (
         <div
           role="status"

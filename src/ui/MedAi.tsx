@@ -1,14 +1,15 @@
 /** The AI tabs of a medicine: a plain-language summary and questions, both citing the leaflet. */
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { Docs, Medicine } from "../../shared/schema";
 import type { CallContext } from "../ai/call";
 import type { SourceDoc } from "../ai/context";
-import { ask, type Summary, summarize, type Turn } from "../ai/medical";
+import { type AnswerEnd, askStream, type Summary, summarize, type Turn } from "../ai/medical";
 import { loadLlmSettings, modelLabel, savedSettings } from "../ai/settings";
 import { aiCached, setAiCache } from "../db/db";
-import { formatDate } from "../i18n";
+import { formatDate, type TextKey } from "../i18n";
 import { useLocale, useT } from "../i18n/react";
 import { Badge, Button, LinkButton, Notice, Spinner } from "./kit";
+import { Md } from "./Markdown";
 import { href } from "./router";
 
 /** The saved settings once loaded, or null when no model is set up. */
@@ -148,7 +149,9 @@ export function MedSummary({
                 <h3 className="font-semibold">{label}</h3>
                 <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
                   {summary[k].map((line) => (
-                    <li key={line}>{line}</li>
+                    <li key={line}>
+                      <Md text={line} inline />
+                    </li>
                   ))}
                 </ul>
               </section>
@@ -178,10 +181,18 @@ export function MedSummary({
 
 interface AskTurn extends Turn {
   id: string;
-  found: boolean;
   citations: string[];
+  end?: AnswerEnd;
 }
 
+const END_MESSAGES: Record<Exclude<AnswerEnd, "stopped">, TextKey> = {
+  length: "ai.endLength",
+  truncated: "ai.endTruncated",
+  refusal: "ai.endRefusal",
+  "content-filter": "ai.endFilter",
+};
+
+/** Questions about the medicine: answers stream in Markdown, their citations open the leaflet. */
 export function MedAsk({
   med,
   docs,
@@ -196,49 +207,80 @@ export function MedAsk({
   const { ready, ctx } = useAiContext();
   const [turns, setTurns] = useState<AskTurn[]>([]);
   const [question, setQuestion] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [live, setLive] = useState<{ question: string; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const abort = useRef<AbortController | null>(null);
+  const titles = titlesOf(docs);
+
+  useEffect(() => () => abort.current?.abort(), []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     const q = question.trim();
-    if (!ctx || !q) return;
-    setBusy(true);
+    if (!ctx || !q || live) return;
     setError(null);
+    setQuestion("");
+    setLive({ question: q, text: "" });
+    abort.current = new AbortController();
     try {
-      const out = await ask({ ...ctx, t }, locale, sourceOf(med, docs), q, turns);
+      const out = await askStream(
+        { ...ctx, t, signal: abort.current.signal },
+        locale,
+        sourceOf(med, docs),
+        q,
+        turns,
+        (text) => setLive({ question: q, text }),
+      );
       setTurns((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           question: q,
-          answer: out.answer,
-          found: out.found,
+          answer: out.text,
           citations: out.citations,
+          ...(out.end ? { end: out.end } : {}),
         },
       ]);
-      setQuestion("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("ai.errUnknown"));
+      if (!(err instanceof DOMException && err.name === "AbortError")) {
+        setError(err instanceof Error ? err.message : t("ai.errUnknown"));
+        setQuestion(q);
+      }
     } finally {
-      setBusy(false);
+      setLive(null);
+      abort.current = null;
     }
   }
 
   if (!ready) return <Spinner />;
   if (!ctx) return <AiSetup />;
+  const bubbles = [
+    ...turns,
+    ...(live ? [{ id: "live", question: live.question, answer: live.text, citations: [] }] : []),
+  ];
   return (
     <div className="grid gap-3">
       <Notice tone="warn">{t("ai.disclaimer")}</Notice>
-      {turns.map((turn) => (
+      {bubbles.map((turn) => (
         <div key={turn.id} className="grid gap-2">
           <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-brand-700 px-3 py-2 text-sm text-white dark:bg-brand-600">
             {turn.question}
           </p>
-          <div className="card grid max-w-[95%] gap-2 text-sm">
-            {!turn.found ? <Badge tone="warn">{t("ai.notFound")}</Badge> : null}
-            <p className="doc-text">{turn.answer}</p>
-            <Citations ids={turn.citations} titles={titlesOf(docs)} onCite={onCite} />
+          <div
+            className="card grid max-w-[95%] gap-2 text-sm"
+            aria-live={turn.id === "live" ? "polite" : undefined}
+          >
+            {turn.answer ? (
+              <Md text={turn.answer} titles={titles} onCite={onCite} />
+            ) : (
+              <span className="flex items-center gap-2 text-stone-500">
+                <Spinner /> {t("ai.generating", { model: modelLabel(ctx.settings) })}
+              </span>
+            )}
+            {"end" in turn && turn.end && turn.end !== "stopped" ? (
+              <Badge tone="warn">{t(END_MESSAGES[turn.end])}</Badge>
+            ) : null}
+            <Citations ids={turn.citations} titles={titles} onCite={onCite} />
           </div>
         </div>
       ))}
@@ -251,15 +293,16 @@ export function MedAsk({
           placeholder={t("ai.askPlaceholder")}
           aria-label={t("ai.ask")}
         />
-        <Button type="submit" icon="send" busy={busy} disabled={!question.trim()}>
-          {t("ai.ask")}
-        </Button>
+        {live ? (
+          <Button variant="secondary" icon="close" onClick={() => abort.current?.abort()}>
+            {t("ai.stop")}
+          </Button>
+        ) : (
+          <Button type="submit" icon="send" disabled={!question.trim()}>
+            {t("ai.ask")}
+          </Button>
+        )}
       </form>
-      {busy ? (
-        <p className="text-sm text-stone-500">
-          {t("ai.generating", { model: modelLabel(ctx.settings) })}
-        </p>
-      ) : null}
     </div>
   );
 }

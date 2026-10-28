@@ -44,6 +44,83 @@ body {
   }
 }
 
+/* AI answers, rendered from Markdown. */
+.markdown > * + * {
+  @apply mt-2;
+}
+
+.markdown :is(h1, h2, h3, h4) {
+  @apply mt-3 font-semibold;
+}
+
+.markdown > :first-child {
+  @apply mt-0;
+}
+
+.markdown :is(h1, h2) {
+  @apply text-base;
+}
+
+.markdown :is(ul, ol) {
+  @apply space-y-1 pl-5;
+}
+
+.markdown ul {
+  @apply list-disc;
+}
+
+.markdown ol {
+  @apply list-decimal;
+}
+
+.markdown li > :is(ul, ol) {
+  @apply mt-1;
+}
+
+.markdown strong {
+  @apply font-semibold;
+}
+
+.markdown a {
+  @apply text-brand-700 underline dark:text-brand-400;
+}
+
+.markdown code {
+  @apply rounded bg-stone-100 px-1 py-0.5 font-mono text-[0.85em] dark:bg-stone-800;
+}
+
+.markdown pre {
+  @apply overflow-x-auto rounded-lg bg-stone-100 p-3 dark:bg-stone-800;
+}
+
+.markdown pre code {
+  @apply bg-transparent p-0;
+}
+
+.markdown blockquote {
+  @apply border-l-2 border-stone-300 pl-3 text-stone-600 dark:border-stone-700 dark:text-stone-300;
+}
+
+.markdown table {
+  @apply w-full border-collapse text-left;
+}
+
+.markdown :is(th, td) {
+  @apply border-b border-stone-200 px-2 py-1 dark:border-stone-800;
+}
+
+.markdown th {
+  @apply font-semibold;
+}
+
+.markdown hr {
+  @apply border-stone-200 dark:border-stone-800;
+}
+
+.markdown.inline > * {
+  @apply mt-0;
+}
+
 .num {
   font-variant-numeric: tabular-nums;
 }

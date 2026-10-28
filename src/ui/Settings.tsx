@@ -14,6 +14,7 @@ import { useLocale, useSetLocale, useT } from "../i18n/react";
 import { useLoad } from "./hooks";
 import { Button, downloadFile, ExternalLink, Field, Notice, PageTitle } from "./kit";
 import { ScopeSelect } from "./ScopeSelect";
+import { StatusCard } from "./Status";
 import { useApp } from "./state";
 
 const LOCALE_NAMES: Record<string, string> = { fr: "Français", en: "English" };
@@ -43,6 +44,7 @@ export function Settings() {
           <ScopeSelect />
         </Field>
       </section>
+      <StatusCard />
       <AiSettings />
       <DataSettings />
       <Backup />

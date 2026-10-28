@@ -16,7 +16,11 @@ Scan a medicine box, read its official leaflet, keep your medicine cabinet and t
 - **Treatments**: doses, days and dates, a _Today_ screen to record each dose, and adherence. Reminders come as notifications while the app is open, plus an **`.ics` export with alarms**: a serverless web app cannot ring when it is closed, but your phone's calendar can.
 - **Alerts**: shortages, supply tensions, discontinuations and safety information that concern your boxes and treatments, plus expiry alerts.
 - **Family profiles**: each person has their own cabinet and treatments, all on one device. You can back everything up and restore it as JSON.
-- **AI (BYOK, through [llm-connect](https://github.com/maxgfr/llm-models/tree/main/packages/llm-connect))**: a plain-language summary of the leaflet, questions answered from the leaflet and the SmPC, and the interactions between a person's medicines (SmPC sections 4.3 and 4.5). Every answer cites the sections it relies on. You can use OpenAI, Anthropic, Google, Mistral, any OpenAI-compatible provider, or a local server (Ollama, LM Studio).
+- **AI (BYOK, through [llm-connect](https://github.com/maxgfr/llm-models/tree/main/packages/llm-connect))**: a plain-language summary of the leaflet, questions answered from the leaflet and the SmPC, and the interactions between a person's medicines (SmPC sections 4.3 and 4.5).
+  - Answers to questions stream in Markdown and can be stopped.
+  - Every answer cites the sections it relies on; a citation opens that section of the leaflet, and a citation of a section the model was not given is dropped.
+  - You can use OpenAI, Anthropic, Google, Mistral, any OpenAI-compatible provider, or a local server (Ollama, LM Studio).
+- **Status**: the app says whether it is the latest version (and offers the new one when there is one) and whether each country's data is current, on the home screen, in More and in Settings.
 
 ## Countries and data
 
@@ -35,8 +39,20 @@ The **GitHub Action** (`.github/workflows/pages.yml`) builds the index twice a d
 
 - **Every source is downloaded again on every run**, twice a day. French leaflets are re-read from the BDPM every 2 days for marketed medicines and every 7 days for the others. Leaflets of withdrawn specialties are deleted. US labels are always read live.
 - **A broken source never replaces good data.** If a download fails, or a new index loses more than 15% of its medicines (a truncated file), the previous index stays published and is marked stale. The run then fails, so GitHub sends a notification. The app shows the date of each index, and a banner when one is stale or more than two days old.
-- **The app reads the latest published files.** Every read revalidates with the server; the service worker answers only when offline. An installed app checks for a new index when it comes back to the foreground, at most every 30 minutes, and every 6 hours while it stays open.
-- **Nothing is lost if the Actions cache goes.** The index and the leaflet state are backed up in the `data-backup` release after each run and restored from it when the cache is gone. Each scheduled run also re-enables the workflow, which GitHub otherwise disables after 60 days without activity.
+- **Nothing is published without an audit.** `bun run audit` (`indexer/audit.ts`) checks every file before deployment. It verifies:
+  - every record against its schema, in the shard it belongs to;
+  - unique ids;
+  - every pack code resolving to a medicine that has it, and back;
+  - alerts, the search index and every leaflet file;
+  - counts against the manifest;
+  - canary codes that must always resolve.
+
+  An error stops the run before anything is saved or deployed, so the live site keeps its last sound index.
+- **The live site is checked after each deployment.** `bun run verify-live` reads the site as visitors get it: the app version, every country's index, the canary codes and a leaflet must be the ones just built.
+- **The app reads the latest published files.** Every read revalidates with the server; the service worker answers only when offline. An installed app checks for a new index when it comes back to the foreground, at most every 30 minutes, and every 6 hours while it stays open. It compares its own build with the published `version.json` the same way, and offers the new version as soon as there is one.
+- **Nothing is lost if the Actions cache goes.** After each audited run, the index and the leaflet state are backed up in the `data` branch, as one commit replaced each time. They are restored from it when the cache is gone.
+- **The schedule stays on.** Each scheduled run re-enables the workflow, which GitHub otherwise disables after 60 days without activity.
+- **Every failure fails the run**, so GitHub sends a notification: a source, the audit, the deployment or the live check.
 
 The UK needs a free [TRUD](https://isd.digital.nhs.uk/trud) account subscribed to the dm+d items. Its API key goes in the `TRUD_API_KEY` repository secret. Without it, the UK is skipped.
 
@@ -67,6 +83,8 @@ bun run index --country fr --docs-limit 50   # builds public/data/fr (add us, uk
 bun run dev
 bun run test          # unit tests (parsers, GS1, schedule, .ics, alerts, i18n, AI with a mock model)
 bun run test:e2e      # Playwright, on a fixture index
+bun run audit         # checks public/data as the Action does before deploying
+bun run verify-live   # checks that the live site serves the build in dist/
 bun run typecheck && bun run lint
 ```
 

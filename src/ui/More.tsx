@@ -1,6 +1,7 @@
 import { useT } from "../i18n/react";
 import { Icon, type IconName, PageTitle } from "./kit";
 import { href, type Route } from "./router";
+import { StatusCard } from "./Status";
 
 export function More() {
   const t = useT();
@@ -28,6 +29,9 @@ export function More() {
           </li>
         ))}
       </ul>
+      <div className="mt-4">
+        <StatusCard />
+      </div>
       <p className="mt-6 text-xs text-stone-500 dark:text-stone-400">{t("common.disclaimer")}</p>
     </>
   );

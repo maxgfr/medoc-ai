@@ -1,18 +1,23 @@
-# Builds every country's medicine index from the official open data, then the
-# app, and publishes both on GitHub Pages. Twice a day, on push and on demand.
+# Builds every country's medicine index from the official open data, checks
+# it, then publishes it with the app on GitHub Pages and checks the live site.
+# Twice a day, on push and on demand.
 #
-# Keeping the data current:
+# Keeping the data current and correct:
 # - every run downloads every source again; nothing is reused but the leaflet
 #   texts, which are re-read from the BDPM every 2 days (marketed medicines)
 #   or 7 days (the others);
-# - the previous index, the raw downloads and the leaflet state live in the
-#   Actions cache between runs, with a copy in the `data-backup` release in
-#   case the cache is evicted;
 # - a source that fails, or a new index that lost more than 15% of its
-#   medicines, keeps the previous index (marked stale, which the app shows),
-#   and the run still publishes it but ends in failure, so GitHub notifies;
-# - scheduled workflows stop after 60 days without activity on the
-#   repository: each scheduled run re-enables this one.
+#   medicines, keeps the previous index (marked stale, which the app shows);
+# - the data audit checks every published file (schemas, shards, codes that
+#   resolve, alerts, search index, leaflets, counts, canary codes): an error
+#   stops the run before anything is saved or deployed, so the live site keeps
+#   its last sound index;
+# - the previous index lives in the Actions cache, with a copy in the `data`
+#   branch (one commit, replaced on each run) restored when the cache is gone;
+# - after deploying, the live site is read back: app version, every index,
+#   canary codes and a leaflet must be the ones just built;
+# - any failure ends the run in error, so GitHub notifies; scheduled workflows
+#   stop after 60 days without activity, so each scheduled run re-enables it.
 name: Index and deploy
 
 on:
@@ -31,7 +36,7 @@ on:
         default: "45"
 
 permissions:
-  contents: write # the data-backup release
+  contents: write # the data branch
   pages: write
   id-token: write
   actions: write # re-enable the schedule
@@ -69,14 +74,17 @@ jobs:
           key: index-${{ github.run_id }}
           restore-keys: index-
 
-      - name: Restore from the backup release when the cache is gone
+      - name: Restore from the data branch when the cache is gone
         if: steps.restore.outputs.cache-matched-key == ''
         run: |
-          if gh release download data-backup --pattern index.tar.gz --dir /tmp; then
-            tar -xzf /tmp/index.tar.gz
-            echo "Restored the index from the data-backup release." >> "$GITHUB_STEP_SUMMARY"
+          if git fetch -q --depth 1 origin data; then
+            mkdir -p /tmp/restore .cache/fr public
+            git archive FETCH_HEAD | tar -x -C /tmp/restore
+            rm -rf public/data && cp -r /tmp/restore/data public/data
+            cp /tmp/restore/state/docs-state.json .cache/fr/ 2>/dev/null || true
+            echo "Restored the index from the data branch." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "No backup yet: building from scratch." >> "$GITHUB_STEP_SUMMARY"
+            echo "No data branch yet: building from scratch." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Build the index
@@ -92,8 +100,10 @@ jobs:
           DOCS_MINUTES: ${{ inputs.docs_minutes || (github.event_name == 'schedule' && '45') || '8' }}
           TRUD_API_KEY: ${{ secrets.TRUD_API_KEY }}
 
+      - name: Audit the data
+        run: bun run audit
+
       - name: Save the index for the next run
-        if: always()
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -101,21 +111,44 @@ jobs:
             public/data
           key: index-${{ github.run_id }}
 
-      - name: Back the index up in a release
+      - name: Back the index up in the data branch
         if: github.ref == 'refs/heads/main'
         run: |
-          tar -czf /tmp/index.tar.gz public/data .cache/fr/docs-state.json 2>/dev/null || tar -czf /tmp/index.tar.gz public/data
-          gh release view data-backup >/dev/null 2>&1 || gh release create data-backup --prerelease --latest=false \
-            --title "Index backup" --notes "The last medicine index built by the Index and deploy workflow, restored when the Actions cache is gone. Not an app release."
-          gh release upload data-backup /tmp/index.tar.gz --clobber
+          rm -rf /tmp/backup && mkdir -p /tmp/backup/state
+          cp -r public/data /tmp/backup/data
+          cp .cache/fr/docs-state.json /tmp/backup/state/ 2>/dev/null || true
+          cat > /tmp/backup/README.md <<EOF
+          # Medicine index backup
+
+          The last audited index built by the "Index and deploy" workflow (run ${GITHUB_RUN_ID}),
+          restored when the Actions cache is gone. One commit, replaced on each run: not a history.
+          EOF
+          cd /tmp/backup
+          git init -q -b data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git"
+          # The previous backup's objects, so only what changed is uploaded.
+          git fetch -q --depth 1 "$remote" data 2>/dev/null || true
+          git add -A
+          git commit -q -m "data: index of $(date -u +%Y-%m-%dT%H:%MZ) (run ${GITHUB_RUN_ID})"
+          git push -q --force "$remote" data:data
+          echo "Index backed up in the data branch." >> "$GITHUB_STEP_SUMMARY"
 
       - run: bun run build
       - name: Index summary
         run: |
           du -sh dist dist/data/* | tee -a "$GITHUB_STEP_SUMMARY"
-          for m in dist/data/*/manifest.json; do
-            jq -r '"\(.country): \(.counts.medicines) medicines, \(.counts.docs) leaflets, built \(.generatedAt)\(if .stale then " — STALE: " + .stale else "" end)"' "$m"
-          done | tee -a "$GITHUB_STEP_SUMMARY"
+          jq -r '"App \(.version) (\(.commit))"' dist/version.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Keep what the live check compares against
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: deployed
+          path: |
+            dist/version.json
+            dist/data/countries.json
+            dist/data/*/manifest.json
+          retention-days: 7
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -131,9 +164,32 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  # The site as visitors get it: the app and every index just built, canary codes, a leaflet.
+  verify:
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: deployed
+          path: dist
+      - run: bun run verify-live --base "${URL}" --dist dist
+        env:
+          URL: ${{ needs.deploy.outputs.url }}
 
   # Published anyway, but a country left on its previous index fails the run, so GitHub notifies.
   freshness:

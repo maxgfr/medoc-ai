@@ -8,6 +8,7 @@ import { medicine } from "../data/repo";
 import { useLocale, useT } from "../i18n/react";
 import { localDay } from "../reminders/schedule";
 import { Badge, Button, Empty, Notice, PageTitle } from "./kit";
+import { Md } from "./Markdown";
 import { AiSetup, useAiContext } from "./MedAi";
 import { href } from "./router";
 import { useApp, useMine } from "./state";
@@ -121,7 +122,9 @@ export function Interactions() {
                         {p.a} + {p.b}
                       </span>
                     </div>
-                    <p className="text-sm">{p.explanation}</p>
+                    <div className="text-sm">
+                      <Md text={p.explanation} />
+                    </div>
                     {p.citations.length ? (
                       <p className="text-xs text-stone-500">
                         {t("ai.sources")}:{" "}

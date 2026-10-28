@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { offlineData } from "./helpers";
 
 test.use({ locale: "fr-FR", viewport: { width: 390, height: 844 } });
@@ -79,17 +79,41 @@ test("profiles keep their own cabinet", async ({ page }) => {
   await expect(page.getByText("Votre armoire est vide")).toBeVisible();
 });
 
-test("the AI summary goes through the configured model and cites the leaflet", async ({ page }) => {
-  const summary = {
-    purpose: ["Traite la douleur et la fièvre."],
-    howToTake: ["1 comprimé, à renouveler au bout de 6 heures si besoin."],
-    doNotTake: ["Maladie grave du foie."],
-    sideEffects: [],
-    warnings: [],
-    citations: ["notice-1", "rcp-4.3"],
-  };
-  await page.route("http://localhost:4318/fake/v1/**", (route) =>
-    route.fulfill({
+/**
+ * An OpenAI-compatible server on this origin, set up as the custom endpoint: a JSON answer
+ * for a structured call, Server-Sent Events chunks for a streamed one, as a real server sends.
+ */
+async function fakeModel(page: Page, answer: { json?: unknown; chunks?: string[] }) {
+  await page.route("http://localhost:4318/fake/v1/**", async (route) => {
+    const body = route.request().postDataJSON() as { stream?: boolean } | null;
+    if (body?.stream) {
+      const events = (answer.chunks ?? []).map((content, i) => ({
+        id: "x",
+        object: "chat.completion.chunk",
+        created: 0,
+        model: "test-model",
+        choices: [
+          {
+            index: 0,
+            delta: i ? { content } : { role: "assistant", content },
+            finish_reason: null,
+          },
+        ],
+      }));
+      events.push({
+        id: "x",
+        object: "chat.completion.chunk",
+        created: 0,
+        model: "test-model",
+        choices: [{ index: 0, delta: {}, finish_reason: "stop" } as never],
+      });
+      await route.fulfill({
+        contentType: "text/event-stream",
+        body: `${events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("")}data: [DONE]\n\n`,
+      });
+      return;
+    }
+    await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
         id: "x",
@@ -100,26 +124,86 @@ test("the AI summary goes through the configured model and cites the leaflet", a
           {
             index: 0,
             finish_reason: "stop",
-            message: { role: "assistant", content: JSON.stringify(summary) },
+            message: { role: "assistant", content: JSON.stringify(answer.json) },
           },
         ],
         usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
       }),
-    }),
-  );
+    });
+  });
   await page.goto("./#/settings");
   await page.getByRole("tab", { name: "Local / personnalisé" }).click();
   await page.getByLabel("Point d'accès (compatible OpenAI)").fill("http://localhost:4318/fake/v1");
   await page.getByLabel("Modèle", { exact: true }).fill("test-model");
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await expect(page.getByText("Enregistré.")).toBeVisible();
+}
 
+test("the AI summary goes through the configured model and cites the leaflet", async ({ page }) => {
+  await fakeModel(page, {
+    json: {
+      purpose: ["Traite la **douleur** et la fièvre."],
+      howToTake: ["1 comprimé, à renouveler au bout de 6 heures si besoin."],
+      doNotTake: ["Maladie grave du foie."],
+      sideEffects: [],
+      warnings: [],
+      citations: ["notice-1", "rcp-4.3"],
+    },
+  });
   await page.goto("./#/med/fr/60234100");
   await page.getByRole("tab", { name: "Résumé clair" }).click();
   await page.getByRole("button", { name: "Résumer la notice" }).click();
   await expect(page.getByText("Traite la douleur et la fièvre.")).toBeVisible();
+  await expect(page.locator("strong", { hasText: "douleur" })).toBeVisible();
   await page.getByRole("button", { name: /4\.3\. Contre-indications/ }).click();
   await expect(page.locator("#sec-rcp-4\\.3")).toHaveAttribute("open", "");
+});
+
+test("a question: the answer streams in Markdown, its citations open the leaflet", async ({
+  page,
+}) => {
+  await fakeModel(page, {
+    chunks: [
+      "Avec un anticoagulant AVK, **prudence** [rcp-4.5] :\n\n",
+      "- contrôle plus fréquent de l'INR\n",
+      "- au-delà de 4 g/j pendant 4 jours, risque de saignement [rcp-4.5] [rcp-99.9]",
+    ],
+  });
+  await page.goto("./#/med/fr/60234100");
+  await page.getByRole("tab", { name: "Questions" }).click();
+  await page.getByLabel("Demander").fill("Et avec la warfarine ?");
+  await page.getByRole("button", { name: "Demander" }).click();
+  await expect(page.locator(".markdown strong", { hasText: "prudence" })).toBeVisible();
+  await expect(page.locator(".markdown li")).toHaveCount(2);
+  // The invented section [rcp-99.9] is dropped; the real one is a button to the leaflet.
+  await expect(page.getByText("rcp-99.9")).toHaveCount(0);
+  await page
+    .locator(".markdown")
+    .getByRole("button", { name: /4\.5\. Interactions/ })
+    .first()
+    .click();
+  await expect(page.locator("#sec-rcp-4\\.5")).toHaveAttribute("open", "");
+});
+
+test("the app says it is the latest version, or that a new one is out", async ({ page }) => {
+  await page.goto("./#/more");
+  await expect(page.getByText("Dernière version")).toBeVisible();
+  await expect(
+    page.getByText(/Application et données des médicaments à jour|Données pas à jour/),
+  ).toHaveCount(0);
+  await page.route(/\/version\.json$/, (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: "9.9.9",
+        commit: "abcdef0",
+        builtAt: "2030-01-01T00:00:00Z",
+      }),
+    }),
+  );
+  await page.getByRole("button", { name: "Vérifier maintenant" }).click();
+  await expect(page.getByText("Une nouvelle version de Medoc est disponible 9.9.9.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Passer à la 9.9.9 (abcdef0)" })).toBeVisible();
 });
 
 test("English interface, from the header or Settings", async ({ page }) => {

@@ -6,10 +6,46 @@
  * openFDA) and local model servers, and nothing else. It is left out of the dev
  * server, whose hot reload needs inline scripts.
  */
+import { execSync } from "node:child_process";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import pkg from "./package.json" with { type: "json" };
+
+/** Runs a git command; null where git or the answer is unavailable (as in maxgfr/cursus). */
+function git(args: string): string | null {
+  try {
+    return (
+      execSync(`git ${args}`, { stdio: ["ignore", "pipe", "ignore"] })
+        .toString()
+        .trim() || null
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** The build: the app's version, the commit (CI's GITHUB_SHA, else HEAD) and when it was built. */
+const BUILD = {
+  version: pkg.version,
+  commit: process.env.GITHUB_SHA?.slice(0, 7) || git("rev-parse --short HEAD") || "dev",
+  builtAt: new Date().toISOString(),
+};
+
+/**
+ * version.json: what the server currently publishes. The app compares it with
+ * the build it runs to tell whether it is the latest version.
+ */
+function versionFile(): Plugin {
+  return {
+    name: "version-file",
+    apply: "build",
+    generateBundle() {
+      this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify(BUILD) });
+    },
+  };
+}
 
 export const CSP = [
   "default-src 'none'",
@@ -48,12 +84,16 @@ function head(): Plugin {
 
 export default defineConfig({
   base: "./",
+  define: { __BUILD__: JSON.stringify(BUILD) },
   plugins: [
     react(),
     tailwindcss(),
     head(),
+    versionFile(),
     VitePWA({
-      registerType: "autoUpdate",
+      // A new version waits until the person accepts it (the app says one is there), so a
+      // form being filled is never reloaded under their fingers.
+      registerType: "prompt",
       injectRegister: false,
       includeAssets: ["icon.svg"],
       manifest: {
@@ -74,7 +114,7 @@ export default defineConfig({
       workbox: {
         // The app shell and the scanner's wasm; medicine data is cached as it is read.
         globPatterns: ["**/*.{js,css,html,svg,wasm,json}"],
-        globIgnores: ["data/**", "models.json"],
+        globIgnores: ["data/**", "models.json", "version.json"],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: "index.html",
         runtimeCaching: [
