@@ -1,0 +1,11 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+.impeccable/
+.DS_Store
+*.log
+.claude/
+public/data/
+.cache/
+e2e/.data/

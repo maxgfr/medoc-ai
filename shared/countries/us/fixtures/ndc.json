@@ -1,0 +1,193 @@
+{
+ "results": [
+  {
+   "product_ndc": "71309-001",
+   "generic_name": "Acetaminophen",
+   "labeler_name": "Safrel Pharmaceuticals, LLC.",
+   "brand_name": "Extra Strength No-Pain",
+   "active_ingredients": [
+    {
+     "name": "ACETAMINOPHEN",
+     "strength": "500 mg/1"
+    }
+   ],
+   "finished": true,
+   "packaging": [
+    {
+     "package_ndc": "71309-001-05",
+     "description": "500 TABLET in 1 BOTTLE (71309-001-05)",
+     "marketing_start_date": "20170731",
+     "sample": false
+    },
+    {
+     "package_ndc": "71309-001-40",
+     "description": "1 BOTTLE in 1 CARTON (71309-001-40)  / 40 TABLET in 1 BOTTLE",
+     "marketing_start_date": "20170731",
+     "sample": false
+    }
+   ],
+   "listing_expiration_date": "20261231",
+   "openfda": {
+    "manufacturer_name": [
+     "Safrel Pharmaceuticals, LLC."
+    ],
+    "rxcui": [
+     "198440"
+    ],
+    "spl_set_id": [
+     "873f01dd-0701-5fd3-e053-2a95a90a6463"
+    ],
+    "is_original_packager": [
+     true
+    ],
+    "upc": [
+     "0371309001051"
+    ],
+    "unii": [
+     "362O9ITL9D"
+    ]
+   },
+   "marketing_category": "OTC MONOGRAPH DRUG",
+   "dosage_form": "TABLET",
+   "spl_id": "3371e8dc-ae55-9a65-e063-6394a90aeaac",
+   "product_type": "HUMAN OTC DRUG",
+   "route": [
+    "ORAL"
+   ],
+   "marketing_start_date": "20170731",
+   "product_id": "71309-001_3371e8dc-ae55-9a65-e063-6394a90aeaac",
+   "application_number": "M013",
+   "brand_name_base": "Extra Strength No-Pain"
+  },
+  {
+   "product_ndc": "0009-0098",
+   "generic_name": "obeticholic acid",
+   "labeler_name": "Pharmacia & Upjohn Company LLC",
+   "active_ingredients": [
+    {
+     "name": "OBETICHOLIC ACID",
+     "strength": "1 kg/kg"
+    }
+   ],
+   "finished": false,
+   "packaging": [
+    {
+     "package_ndc": "0009-0098-05",
+     "description": "1 BAG in 1 DRUM (0009-0098-05)  / 5 kg in 1 BAG",
+     "marketing_start_date": "14-MAY-21"
+    }
+   ],
+   "listing_expiration_date": "20261231",
+   "openfda": {},
+   "marketing_category": "BULK INGREDIENT",
+   "dosage_form": "POWDER",
+   "spl_id": "fcb3e676-dae6-4255-bba3-55777e2845d7",
+   "product_type": "BULK INGREDIENT",
+   "marketing_start_date": "20210514",
+   "product_id": "0009-0098_fcb3e676-dae6-4255-bba3-55777e2845d7",
+   "brand_name_base": null
+  },
+  {
+   "product_ndc": "71334-220",
+   "generic_name": "mitapivat",
+   "labeler_name": "Agios Pharmaceuticals, Inc.",
+   "brand_name": "PYRUKYND",
+   "active_ingredients": [
+    {
+     "name": "MITAPIVAT",
+     "strength": "5 mg/1"
+    }
+   ],
+   "finished": true,
+   "packaging": [
+    {
+     "package_ndc": "71334-220-11",
+     "description": "1 BLISTER PACK in 1 CARTON (71334-220-11)  / 7 TABLET, FILM COATED in 1 BLISTER PACK",
+     "marketing_start_date": "20220218",
+     "sample": false
+    }
+   ],
+   "listing_expiration_date": "20271231",
+   "openfda": {
+    "manufacturer_name": [
+     "Agios Pharmaceuticals, Inc."
+    ],
+    "rxcui": [
+     "2594473",
+     "2594479",
+     "2594496",
+     "2594498",
+     "2594501",
+     "2594503",
+     "2594741",
+     "2594742",
+     "2594743",
+     "2594744",
+     "2594745",
+     "2594746",
+     "2594747",
+     "2594748",
+     "2594749",
+     "2594750",
+     "2594794",
+     "2594795"
+    ],
+    "spl_set_id": [
+     "4ccee896-e313-4c6c-9674-b4746ada0a90"
+    ],
+    "is_original_packager": [
+     true
+    ],
+    "nui": [
+     "N0000194008",
+     "N0000194009",
+     "N0000190118",
+     "N0000187064",
+     "N0000187063",
+     "N0000185507",
+     "N0000185607",
+     "N0000194036",
+     "N0000185503"
+    ],
+    "pharm_class_epc": [
+     "Pyruvate Kinase Activator [EPC]"
+    ],
+    "pharm_class_moa": [
+     "Pyruvate Kinase Activators [MoA]",
+     "Cytochrome P450 3A Inducers [MoA]",
+     "Cytochrome P450 2B6 Inducers [MoA]",
+     "Cytochrome P450 2C8 Inducers [MoA]",
+     "Cytochrome P450 2C9 Inducers [MoA]",
+     "Cytochrome P450 2C19 Inducers [MoA]",
+     "UGT1A1 Inducers [MoA]",
+     "P-Glycoprotein Inhibitors [MoA]"
+    ],
+    "unii": [
+     "2WTV10SIKH"
+    ]
+   },
+   "marketing_category": "NDA",
+   "dosage_form": "TABLET, FILM COATED",
+   "spl_id": "557b465d-234d-75a2-e063-6394a90a070a",
+   "product_type": "HUMAN PRESCRIPTION DRUG",
+   "route": [
+    "ORAL"
+   ],
+   "marketing_start_date": "20220218",
+   "product_id": "71334-220_557b465d-234d-75a2-e063-6394a90a070a",
+   "application_number": "NDA216196",
+   "brand_name_base": "PYRUKYND",
+   "pharm_class": [
+    "Cytochrome P450 2B6 Inducers [MoA]",
+    "Cytochrome P450 2C19 Inducers [MoA]",
+    "Cytochrome P450 2C8 Inducers [MoA]",
+    "Cytochrome P450 2C9 Inducers [MoA]",
+    "Cytochrome P450 3A Inducers [MoA]",
+    "P-Glycoprotein Inhibitors [MoA]",
+    "Pyruvate Kinase Activator [EPC]",
+    "Pyruvate Kinase Activators [MoA]",
+    "UGT1A1 Inducers [MoA]"
+   ]
+  }
+ ]
+}

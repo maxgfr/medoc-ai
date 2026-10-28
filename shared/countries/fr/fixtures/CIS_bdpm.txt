@@ -1,0 +1,3 @@
+63922956	BREVIBLOC 100 mg/10 ml, solution injectable en flacon	solution injectable	intraveineuse	Autorisation active	Procédure nationale	Commercialisée	25/09/1989			 BAXTER	Non
+60234100	DOLIPRANE 1000 mg, comprimé	comprimé	orale	Autorisation active	Procédure nationale	Commercialisée	09/07/2002			 OPELLA HEALTHCARE FRANCE	Non
+60043038	PROTOXYDE D AZOTE TEST, gaz	gaz	inhalée	Autorisation active	Procédure nationale	Commercialisée	01/01/2000			TEST	Non

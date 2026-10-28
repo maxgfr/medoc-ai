@@ -1,0 +1,92 @@
+# Builds every country's medicine index from the official open data, then the
+# app, and publishes both on GitHub Pages. Daily, on push and on demand.
+#
+# The raw downloads, the leaflet scraping state and the previous index live in
+# the Actions cache between runs: leaflets are scraped a few thousand at a time,
+# and a source that fails keeps yesterday's index (flagged as stale).
+name: Index and deploy
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      country:
+        description: "fr, us, uk or all"
+        default: all
+      docs_minutes:
+        description: "Minutes spent scraping French leaflets"
+        default: "45"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+
+      - name: Restore the previous index
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache
+            public/data
+          key: index-${{ github.run_id }}
+          restore-keys: index-
+
+      - name: Build the index
+        run: >-
+          bun run index
+          --country "${COUNTRY}"
+          --docs-limit 6000
+          --docs-minutes "${DOCS_MINUTES}"
+        env:
+          COUNTRY: ${{ inputs.country || 'all' }}
+          # Pushes publish quickly; the daily run spends time on leaflets.
+          DOCS_MINUTES: ${{ inputs.docs_minutes || (github.event_name == 'schedule' && '45') || '8' }}
+          TRUD_API_KEY: ${{ secrets.TRUD_API_KEY }}
+
+      - name: Save the index for the next run
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache
+            public/data
+          key: index-${{ github.run_id }}
+
+      - run: bun run build
+      - name: Index size
+        run: du -sh dist dist/data/* | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

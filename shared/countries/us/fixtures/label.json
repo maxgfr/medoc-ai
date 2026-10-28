@@ -1,0 +1,105 @@
+{
+  "meta": {
+    "disclaimer": "Do not rely on openFDA to make decisions regarding medical care. While we make every effort to ensure that data is accurate, you should assume all results are unvalidated. We may limit or otherwise restrict your access to the API in line with our Terms of Service.",
+    "terms": "https://open.fda.gov/terms/",
+    "license": "https://open.fda.gov/license/",
+    "last_updated": "2026-10-27",
+    "results": {
+      "skip": 0,
+      "limit": 1,
+      "total": 1
+    }
+  },
+  "results": [
+    {
+      "spl_product_data_elements": [
+        "Extra Strength No-Pain Acetaminophen STARCH, PREGELATINIZED CORN POVIDONE SILICON DIOXIDE HYPROMELLOSES CELLULOSE, MICROCRYSTALLINE STEARIC ACID POLYETHYLENE GLYCOL, UNSPECIFIED TITANIUM DIOXIDE TALC ACETAMINOPHEN ACETAMINOPHEN BH"
+      ],
+      "active_ingredient": [
+        "Active Ingredient (in each tablet) Acetaminophen 500mg"
+      ],
+      "purpose": [
+        "Purpose Pain reliever/fever reducer"
+      ],
+      "indications_and_usage": [
+        "Uses temporary relieves minor aches and pains due to the common cold headache backache toothache muscular aches premenstrual and menstrual cramps and temporarily reduces fever"
+      ],
+      "warnings": [
+        "Warnings Liver warning: This product contains acetaminophen. Severe liver damage may occur if you take more than 4,000 mg of acetaminophen in 24 hours with other drugs containing acetaminophen 3 or more alcoholic drinks every day while using this product Allergy alert: Acetaminophen may cause severe skin reactions. Symptoms may include: skin reddening blisters rash If a skin reaction occurs, stop use and seek medical help right away. Do not use with any other drug containing acetaminophen (prescription or nonprescription). If you are not sure whether a drug contains acetaminophen, ask a doctor or pharmacist. if you have ever had an allergic reaction to this product or any of its ingredients Ask a doctor before use if you have liver disease Ask a doctor or pharmacist before use if you are taking the blood thinning drug warfarin Stop use and ask a doctor if pain gets worse or lasts more than 10 days fever gets worse or lasts more than 3 days new symptoms occur redness or swelling is present These could be signs of a serious condition."
+      ],
+      "pregnancy_or_breast_feeding": [
+        "If pregnant or breast-feeding ask a health professional before use"
+      ],
+      "keep_out_of_reach_of_children": [
+        "Keep out of reach of children. Overdose warning: Taking more than the reccomended dose (overdose) may cause liver damage. In case of overdose. get medical help or contact a Poison Control Center (1-800-222-1222) right away. Quick medical attention is critical for adults as well as for children even if you do not notice any signs or symptoms. Do not exceed recommended dosage."
+      ],
+      "dosage_and_administration": [
+        "Directions do not use more than directed (see overdose warning) Adults and children 12 years of age and older: Take 2 caplets every 6 hours while symptoms last. Do not take more than 6 caplets in 24 hours, unless directed by a doctor Do not use more than 10 days unless directed by a doctor. Children under 12 years of age: Do not use this extra strength product. This will provide more than the recommended dose (overdose) and could cause serious health problems."
+      ],
+      "other_safety_information": [
+        "Other Information store at controlled room temperature 20-25°C (68-77°F). read all product information before using. TAMPER EVIDENT: DO NOT USE IF IMPRINTED SAFETY SEAL UNDER CAP IS BROKEN OR MISSING."
+      ],
+      "inactive_ingredient": [
+        "Inactive Ingredients Hypromellose, Magnesium Stearate, Microcrystalline Cellulose, Pregelatinized Starch, Polyethylene Glycol, Polyvinyl Pyrolidone, Stearic Acid, Talc, Titanium Dioxide"
+      ],
+      "questions": [
+        "Questions or Comments 1-844-384-3723 (Mon-Fri 9AM-5PM EST) or www.safrelpharma.com"
+      ],
+      "package_label_principal_display_panel": [
+        "PACKAGE LABEL.PRINCIPAL DISPLAY PANEL * This product is not manufactured or distributed by McNeil-Consumer Healthcare, owner of the registered trademark Tylenol*. NDC 71309-001-05 500 Caplets apap 500"
+      ],
+      "set_id": "873f01dd-0701-5fd3-e053-2a95a90a6463",
+      "id": "3371e8dc-ae55-9a65-e063-6394a90aeaac",
+      "effective_time": "20250423",
+      "version": "6",
+      "openfda": {
+        "application_number": [
+          "M013"
+        ],
+        "brand_name": [
+          "Extra Strength No-Pain"
+        ],
+        "generic_name": [
+          "ACETAMINOPHEN"
+        ],
+        "manufacturer_name": [
+          "Safrel Pharmaceuticals, LLC."
+        ],
+        "product_ndc": [
+          "71309-001"
+        ],
+        "product_type": [
+          "HUMAN OTC DRUG"
+        ],
+        "route": [
+          "ORAL"
+        ],
+        "substance_name": [
+          "ACETAMINOPHEN"
+        ],
+        "rxcui": [
+          "198440"
+        ],
+        "spl_id": [
+          "3371e8dc-ae55-9a65-e063-6394a90aeaac"
+        ],
+        "spl_set_id": [
+          "873f01dd-0701-5fd3-e053-2a95a90a6463"
+        ],
+        "package_ndc": [
+          "71309-001-05",
+          "71309-001-40"
+        ],
+        "is_original_packager": [
+          true
+        ],
+        "upc": [
+          "0371309001051"
+        ],
+        "unii": [
+          "362O9ITL9D"
+        ]
+      }
+    }
+  ]
+}
