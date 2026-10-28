@@ -250,7 +250,7 @@ export function MedAsk({
         turns,
         (text) => setLive({ question: q, text }),
       );
-      await keep([
+      const next = [
         ...turns,
         {
           id: crypto.randomUUID(),
@@ -259,7 +259,10 @@ export function MedAsk({
           citations: out.citations,
           ...(out.end ? { end: out.end } : {}),
         },
-      ]);
+      ];
+      // The live bubble goes in the same render the saved answer comes in: never both on screen.
+      setLive(null);
+      await keep(next);
     } catch (err) {
       if (!(err instanceof DOMException && err.name === "AbortError")) {
         setError(err instanceof Error ? err.message : t("ai.errUnknown"));

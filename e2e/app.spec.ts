@@ -160,7 +160,7 @@ test("the AI summary goes through the configured model and cites the leaflet", a
 });
 
 // After a reload the service worker would fetch the data itself, around the fixture routes.
-test.describe(() => {
+test.describe("without the service worker", () => {
   test.use({ serviceWorkers: "block" });
   test("a question: the answer streams in Markdown, its citations open the leaflet", question);
 });
