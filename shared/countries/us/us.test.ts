@@ -14,6 +14,25 @@ describe("NDC directory", () => {
     expect(meds.map((m) => m.id)).toEqual(["71309-001", "71334-220"]);
   });
 
+  test("a product NDC listed twice (two SPL versions) is one medicine with every pack", () => {
+    const first = ndc.results[0];
+    const older = {
+      ...first,
+      brand_name: "OLD NAME",
+      marketing_start_date: "20100101",
+      packaging: [{ package_ndc: "71309-001-99", description: "older pack" }],
+    };
+    const out = parseNdc({ results: [older, first] }, "2026-10-28");
+    expect(out.meds).toHaveLength(1);
+    expect(out.meds[0]?.name).toStartWith("Extra Strength No-Pain");
+    expect(out.meds[0]?.packs.map((p) => p.code).sort()).toEqual([
+      "7130900105",
+      "7130900140",
+      "7130900199",
+    ]);
+    expect(out.codes["7130900199"]).toBe("71309-001");
+  });
+
   test("a product with its packages, keyed by dashless NDC-10", () => {
     const m = meds[0];
     expect(m).toMatchObject({
