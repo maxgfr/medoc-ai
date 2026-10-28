@@ -41,10 +41,18 @@ describe("search across countries", () => {
 
 describe("index age", () => {
   const m = (generatedAt: string) => ({ generatedAt }) as Manifest;
-  test("an index built twice a day is old after two days", () => {
+  test("an index built twice a day stays current through one failed update, not through a day of them", () => {
     const now = Date.parse("2026-10-28T12:00:00Z");
-    expect(isOld(m("2026-10-28T04:30:00Z"), now)).toBe(false);
-    expect(isOld(m("2026-10-26T13:00:00Z"), now)).toBe(false);
-    expect(isOld(m("2026-10-26T11:00:00Z"), now)).toBe(true);
+    expect(isOld(m("2026-10-28T11:57:00Z"), now)).toBe(false);
+    // The 04:17 and yesterday's 16:17 builds failed: the data is from yesterday morning.
+    expect(isOld(m("2026-10-27T10:30:00Z"), now)).toBe(false);
+    expect(isOld(m("2026-10-27T09:30:00Z"), now)).toBe(true);
+  });
+
+  test("a failed attempt alone does not make recent data old", () => {
+    const now = Date.parse("2026-10-28T12:35:00Z");
+    expect(
+      isOld({ ...m("2026-10-28T12:25:51Z"), stale: "The operation timed out." } as Manifest, now),
+    ).toBe(false);
   });
 });

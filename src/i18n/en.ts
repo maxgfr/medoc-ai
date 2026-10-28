@@ -279,6 +279,7 @@ export const en = {
   },
   ai: {
     stop: "Stop",
+    clearChat: "Clear the conversation",
     endLength: "The answer reached the model's length limit and is cut.",
     endTruncated: "The answer was interrupted before its end.",
     endRefusal: "The model declined to answer.",
@@ -363,7 +364,7 @@ export const en = {
     builtOn: "Built on {date}",
     counts: "{meds} medicines · {packs} pack codes · {alerts} alerts · {docs} leaflets",
     stale:
-      "This index is out of date: its last update failed or did not run. It is still the latest one published.",
+      "This index is out of date: no update has succeeded for more than a day. It is still the latest one published.",
     localNotUpdated:
       "An index imported on this device does not update itself: use the published one again to get the daily updates.",
     refresh: "Check for updates",
@@ -416,5 +417,7 @@ export const en = {
     notCurrent: "Not up to date",
     checkNow: "Check now",
     checkedAt: "Checked on {date}",
+    lastAttemptFailed:
+      "The last update attempt failed: this data stays the latest built, and the next run tries again.",
   },
 } as const;

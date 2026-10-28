@@ -26,7 +26,7 @@ export interface NoticeOptions {
   cacheDir: string;
   limit: number;
   minutes: number;
-  /** Pages fetched at once; each worker waits `delayMs` between pages. */
+  /** Pages fetched at once (2); each worker waits `delayMs` (600) between pages: about 3 pages a second. */
   concurrency?: number;
   delayMs?: number;
   /** Pages older than this are fetched again: marketed medicines, then the others. */
@@ -34,6 +34,9 @@ export interface NoticeOptions {
 }
 
 export const REFRESH_DAYS = { marketed: 2, other: 7 };
+
+/** Failures in a row before a pause, the pause, and the pauses allowed in one run. */
+export const BREAKER = { failures: 8, pauseMs: 120_000, pauses: 3 };
 
 export const docPath = (outDir: string, cis: string) =>
   join(outDir, "fr", "docs", `${cis}.json.gz`);
@@ -76,12 +79,41 @@ export async function scrapeNotices(meds: Medicine[], o: NoticeOptions): Promise
   const deadline = now + o.minutes * 60_000;
   let fetched = 0;
   let failed = 0;
+  // The BDPM is a public service: a server that stops answering gets a break, and after a few
+  // breaks the run leaves the rest for the next one rather than getting the runners blocked.
+  let consecutive = 0;
+  let pauses = 0;
+  let pauseUntil = 0;
+  let stopped = false;
   const worker = async () => {
-    while (queue.length && Date.now() < deadline) {
+    while (queue.length && Date.now() < deadline && !stopped) {
+      if (Date.now() < pauseUntil) {
+        await sleep(pauseUntil - Date.now());
+        continue;
+      }
       const cis = queue.shift();
       if (!cis) break;
+      let html: string;
       try {
-        const html = await (await get(extraitUrl(cis), { tries: 2, timeoutMs: 30_000 })).text();
+        html = await (await get(extraitUrl(cis), { tries: 2, timeoutMs: 30_000 })).text();
+        consecutive = 0;
+      } catch (err) {
+        failed++;
+        queue.push(cis);
+        if (failed <= 10) log(`notices: ${cis} failed,`, err instanceof Error ? err.message : err);
+        if (++consecutive >= BREAKER.failures && Date.now() >= pauseUntil) {
+          consecutive = 0;
+          if (++pauses > BREAKER.pauses) {
+            stopped = true;
+            log("notices: the BDPM keeps failing; the rest is left for the next run");
+          } else {
+            pauseUntil = Date.now() + BREAKER.pauseMs;
+            log(`notices: the BDPM is not answering; pause ${pauses} of ${BREAKER.pauses}`);
+          }
+        }
+        continue;
+      }
+      try {
         const sections = parseExtrait(html);
         const at = new Date().toISOString();
         // A page that had a leaflet and comes back without one is more likely an error page than a withdrawal.
@@ -107,10 +139,10 @@ export async function scrapeNotices(meds: Medicine[], o: NoticeOptions): Promise
         failed++;
         if (failed <= 10) log(`notices: ${cis} failed,`, err instanceof Error ? err.message : err);
       }
-      await sleep(o.delayMs ?? 400);
+      await sleep(o.delayMs ?? 600);
     }
   };
-  await Promise.all(Array.from({ length: o.concurrency ?? 3 }, worker));
+  await Promise.all(Array.from({ length: o.concurrency ?? 2 }, worker));
   await writeJson(statePath, state);
   log(`notices: ${fetched} fetched, ${failed} failed, ${queue.length} left for the next run`);
 

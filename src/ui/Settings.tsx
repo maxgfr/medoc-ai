@@ -383,8 +383,10 @@ function CountryData({ country }: { country: CountryId }) {
           </p>
           {source === "local" ? (
             <Notice tone="warn">{t("settings.localNotUpdated")}</Notice>
-          ) : m.stale || isOld(m) ? (
+          ) : isOld(m) ? (
             <Notice tone="warn">{t("settings.stale")}</Notice>
+          ) : m.stale ? (
+            <Notice>{t("status.lastAttemptFailed")}</Notice>
           ) : null}
           <p className="text-xs text-stone-500">{m.attribution}</p>
           {m.sources.length ? (

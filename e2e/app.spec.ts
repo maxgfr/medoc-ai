@@ -159,9 +159,13 @@ test("the AI summary goes through the configured model and cites the leaflet", a
   await expect(page.locator("#sec-rcp-4\\.3")).toHaveAttribute("open", "");
 });
 
-test("a question: the answer streams in Markdown, its citations open the leaflet", async ({
-  page,
-}) => {
+// After a reload the service worker would fetch the data itself, around the fixture routes.
+test.describe(() => {
+  test.use({ serviceWorkers: "block" });
+  test("a question: the answer streams in Markdown, its citations open the leaflet", question);
+});
+
+async function question({ page }: { page: Page }) {
   await fakeModel(page, {
     chunks: [
       "Avec un anticoagulant AVK, **prudence** [rcp-4.5] :\n\n",
@@ -183,7 +187,24 @@ test("a question: the answer streams in Markdown, its citations open the leaflet
     .first()
     .click();
   await expect(page.locator("#sec-rcp-4\\.5")).toHaveAttribute("open", "");
-});
+
+  // The conversation survives tab changes, a reload, and goes only when cleared.
+  const answer = page.locator(".markdown strong", { hasText: "prudence" });
+  await page.getByRole("tab", { name: "Résumé clair" }).click();
+  await page.getByRole("tab", { name: "Informations" }).click();
+  await page.getByRole("tab", { name: "Questions" }).click();
+  await expect(page.getByText("Et avec la warfarine ?")).toBeVisible();
+  await expect(answer).toBeVisible();
+  await page.reload();
+  await page.getByRole("tab", { name: "Questions" }).click();
+  await expect(answer).toBeVisible();
+  await page.getByRole("button", { name: "Effacer la conversation" }).click();
+  await expect(page.getByText("Et avec la warfarine ?")).toHaveCount(0);
+  await page.reload();
+  await page.getByRole("tab", { name: "Questions" }).click();
+  await expect(page.getByLabel("Demander")).toBeVisible();
+  await expect(page.getByText("Et avec la warfarine ?")).toHaveCount(0);
+}
 
 test("the app says it is the latest version, or that a new one is out", async ({ page }) => {
   await page.goto("./#/more");

@@ -134,8 +134,11 @@ export async function aiCached<T>(key: string): Promise<T | undefined> {
   return (await (await db()).get("aiCache", key))?.value as T | undefined;
 }
 
+/** Resolves once the write is committed, so a reload right after finds it. */
 export async function setAiCache(key: string, value: unknown): Promise<void> {
-  await (await db()).put("aiCache", { value, at: new Date().toISOString() }, key);
+  const tx = (await db()).transaction("aiCache", "readwrite");
+  await tx.store.put({ value, at: new Date().toISOString() }, key);
+  await tx.done;
 }
 
 export async function exportBackup(): Promise<Backup> {

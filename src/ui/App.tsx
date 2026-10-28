@@ -121,7 +121,7 @@ export function App() {
   const setLocale = useSetLocale();
   const other = locale === "fr" ? "en" : "fr";
   // An index that stopped updating says so on every page, with its date.
-  const old = (Object.values(manifests) as Manifest[]).filter((m) => m.stale || isOld(m));
+  const old = (Object.values(manifests) as Manifest[]).filter((m) => isOld(m));
   useInAppReminders();
 
   useEffect(() => {

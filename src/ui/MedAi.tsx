@@ -211,8 +211,27 @@ export function MedAsk({
   const [error, setError] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const titles = titlesOf(docs);
+  // Each medicine keeps its conversation on the device, across visits and reloads.
+  const chatKey = `chat:${med.country}:${med.id}`;
+
+  useEffect(() => {
+    let live = true;
+    void aiCached<AskTurn[]>(chatKey).then((saved) => {
+      if (live && saved?.length) setTurns(saved);
+    });
+    return () => {
+      live = false;
+    };
+  }, [chatKey]);
 
   useEffect(() => () => abort.current?.abort(), []);
+
+  /** Shows the conversation and keeps it on the device; clearing shows once it is gone from there. */
+  async function keep(next: AskTurn[]) {
+    if (next.length) setTurns(next);
+    await setAiCache(chatKey, next).catch(() => {});
+    if (!next.length) setTurns(next);
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -231,8 +250,8 @@ export function MedAsk({
         turns,
         (text) => setLive({ question: q, text }),
       );
-      setTurns((prev) => [
-        ...prev,
+      await keep([
+        ...turns,
         {
           id: crypto.randomUUID(),
           question: q,
@@ -303,6 +322,11 @@ export function MedAsk({
           </Button>
         )}
       </form>
+      {turns.length && !live ? (
+        <Button variant="ghost" icon="trash" className="w-fit" onClick={() => void keep([])}>
+          {t("ai.clearChat")}
+        </Button>
+      ) : null}
     </div>
   );
 }

@@ -14,7 +14,7 @@ import { Badge, Button, Icon } from "./kit";
 import { href } from "./router";
 import { useApp } from "./state";
 
-const outdated = (m: Manifest) => Boolean(m.stale) || isOld(m);
+const outdated = (m: Manifest) => isOld(m);
 
 export function UpdateBanner() {
   const t = useT();
@@ -114,6 +114,11 @@ export function StatusCard() {
                 {m ? (
                   <span className="block text-xs text-stone-500">
                     {t("status.indexOf", { date: formatDate(locale, m.generatedAt, "time") })}
+                  </span>
+                ) : null}
+                {m?.stale ? (
+                  <span className="block text-xs text-amber-700 dark:text-amber-400">
+                    {t("status.lastAttemptFailed")}
                   </span>
                 ) : null}
               </span>

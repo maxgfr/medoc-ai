@@ -288,6 +288,7 @@ export const fr = {
   },
   ai: {
     stop: "Arrêter",
+    clearChat: "Effacer la conversation",
     endLength: "La réponse a atteint la longueur maximale du modèle et est coupée.",
     endTruncated: "La réponse s'est interrompue avant la fin.",
     endRefusal: "Le modèle a refusé de répondre.",
@@ -374,7 +375,7 @@ export const fr = {
     builtOn: "Construit le {date}",
     counts: "{meds} médicaments · {packs} codes de boîtes · {alerts} alertes · {docs} notices",
     stale:
-      "Cet index n'est plus à jour : sa dernière mise à jour a échoué ou n'a pas tourné. C'est tout de même le dernier publié.",
+      "Cet index n'est plus à jour : aucune mise à jour n'a réussi depuis plus d'un jour. C'est tout de même le dernier publié.",
     localNotUpdated:
       "Un index importé sur cet appareil ne se met pas à jour tout seul : revenez à l'index publié pour avoir les mises à jour quotidiennes.",
     refresh: "Vérifier les mises à jour",
@@ -427,5 +428,7 @@ export const fr = {
     notCurrent: "Pas à jour",
     checkNow: "Vérifier maintenant",
     checkedAt: "Vérifié le {date}",
+    lastAttemptFailed:
+      "La dernière tentative de mise à jour a échoué : ces données restent les dernières construites, et le prochain passage réessaie.",
   },
 } satisfies Catalog;

@@ -1,5 +1,5 @@
 /** One medicine: what the index says, its leaflet, and the AI on top of it. */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Alert, CountryId, Docs, LinkKind, Medicine } from "../../shared/schema";
 import { countryModule } from "../countries/registry";
 import { formatDate, formatPrice, type TextKey } from "../i18n";
@@ -66,9 +66,14 @@ function MedView({ med, scan }: { med: Medicine; scan?: ScanInfo }) {
       i.profileId === active.id && i.country === med.country && i.medId === med.id && !i.finishedAt,
   );
   const hasDocs = med.docs !== "none";
+  // The leaflet loads the first time a tab needs it, and stays.
+  const [wantDocs, setWantDocs] = useState(false);
+  useEffect(() => {
+    if (tab !== "info") setWantDocs(true);
+  }, [tab]);
   const docs = useLoad<Docs | null>(
-    () => (hasDocs && tab !== "info" ? mod.docs(med) : Promise.resolve(null)),
-    [med.country, med.id, hasDocs && tab !== "info"],
+    () => (hasDocs && wantDocs ? mod.docs(med) : Promise.resolve(null)),
+    [med.country, med.id, hasDocs && wantDocs],
   );
 
   const tabs: { id: Tab; label: string }[] = [
@@ -186,9 +191,8 @@ function MedView({ med, scan }: { med: Medicine; scan?: ScanInfo }) {
         </div>
       ) : null}
 
-      {tab === "info" ? (
-        <Info med={med} alerts={alerts} />
-      ) : docs.status === "loading" ? (
+      {tab === "info" ? <Info med={med} alerts={alerts} /> : null}
+      {tab === "info" || !wantDocs ? null : docs.status === "loading" ? (
         <p className="flex items-center gap-2 text-sm text-stone-500">
           <Spinner /> {t("med.docsLoading")}
         </p>
@@ -196,13 +200,21 @@ function MedView({ med, scan }: { med: Medicine; scan?: ScanInfo }) {
         <Notice tone="error">{t("med.docsError")}</Notice>
       ) : !docs.value?.sections.length ? (
         <Notice>{t("med.noDocs")}</Notice>
-      ) : tab === "leaflet" ? (
-        <DocsView docs={docs.value} focus={focus} />
-      ) : tab === "summary" ? (
-        <MedSummary med={med} docs={docs.value} onCite={openSection} />
-      ) : (
-        <MedAsk med={med} docs={docs.value} onCite={openSection} />
-      )}
+      ) : null}
+      {docs.status === "ready" && docs.value?.sections.length ? (
+        // All three stay mounted, only hidden: a conversation or an answer being written survives a tab change.
+        <>
+          <div hidden={tab !== "leaflet"}>
+            <DocsView docs={docs.value} focus={focus} />
+          </div>
+          <div hidden={tab !== "summary"}>
+            <MedSummary med={med} docs={docs.value} onCite={openSection} />
+          </div>
+          <div hidden={tab !== "ask"}>
+            <MedAsk med={med} docs={docs.value} onCite={openSection} />
+          </div>
+        </>
+      ) : null}
 
       {source ? (
         <p className="text-xs text-stone-500 dark:text-stone-400">

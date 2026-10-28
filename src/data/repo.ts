@@ -60,8 +60,12 @@ export async function manifest(country: CountryId): Promise<Manifest | null> {
   );
 }
 
-/** The index is built twice a day: one older than two days means the updates stopped. */
-export const OLD_AFTER_MS = 2 * 86_400_000;
+/**
+ * The index is built twice a day. Data is current while it is younger than 26
+ * hours: one failed update (a source briefly down) leaves it current; a day of
+ * them does not. A failed attempt is shown apart (manifest.stale), not as old data.
+ */
+export const OLD_AFTER_MS = 26 * 3_600_000;
 
 export function isOld(m: Manifest, now = Date.now()): boolean {
   return now - Date.parse(m.generatedAt) > OLD_AFTER_MS;
