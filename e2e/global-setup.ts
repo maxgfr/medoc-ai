@@ -27,11 +27,18 @@ export default async function setup() {
   const bdpm = parseBdpm(files, "2026-10-28");
   const doli = bdpm.meds.find((m) => m.id === "60234100");
   if (doli) doli.docs = "static";
+  // Brevibloc borrows Doliprane's leaflet: two medicines with documents, for the interactions check.
+  const brevibloc = bdpm.meds.find((m) => m.id === "63922956");
+  if (brevibloc) brevibloc.docs = "static";
   const sections = parseExtrait(readFileSync(join(fr, "extrait-60234100.html"), "utf8"));
   mkdirSync(join(DATA, "fr", "docs"), { recursive: true });
   writeFileSync(
     join(DATA, "fr", "docs", "60234100.json.gz"),
     gzipSync(JSON.stringify({ id: "60234100", fetchedAt: "2025-08-25", sections })),
+  );
+  writeFileSync(
+    join(DATA, "fr", "docs", "63922956.json.gz"),
+    gzipSync(JSON.stringify({ id: "63922956", fetchedAt: "2025-08-25", sections })),
   );
   await writeIndex(DATA, "fr", {
     ...bdpm,
@@ -39,7 +46,7 @@ export default async function setup() {
     attribution: "Test BDPM",
     licence: "test",
     search: "static",
-    docs: 1,
+    docs: 2,
   });
   const ndc = JSON.parse(
     readFileSync(join(import.meta.dirname, "../shared/countries/us/fixtures/ndc.json"), "utf8"),

@@ -183,6 +183,7 @@ interface AskTurn extends Turn {
   id: string;
   citations: string[];
   end?: AnswerEnd;
+  reasoning?: string;
 }
 
 const END_MESSAGES: Record<Exclude<AnswerEnd, "stopped">, TextKey> = {
@@ -207,7 +208,9 @@ export function MedAsk({
   const { ready, ctx } = useAiContext();
   const [turns, setTurns] = useState<AskTurn[]>([]);
   const [question, setQuestion] = useState("");
-  const [live, setLive] = useState<{ question: string; text: string } | null>(null);
+  const [live, setLive] = useState<{ question: string; text: string; reasoning: string } | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const titles = titlesOf(docs);
@@ -239,7 +242,7 @@ export function MedAsk({
     if (!ctx || !q || live) return;
     setError(null);
     setQuestion("");
-    setLive({ question: q, text: "" });
+    setLive({ question: q, text: "", reasoning: "" });
     abort.current = new AbortController();
     try {
       const out = await askStream(
@@ -248,7 +251,8 @@ export function MedAsk({
         sourceOf(med, docs),
         q,
         turns,
-        (text) => setLive({ question: q, text }),
+        (text) => setLive((l) => ({ question: q, text, reasoning: l?.reasoning ?? "" })),
+        (reasoning) => setLive((l) => ({ question: q, text: l?.text ?? "", reasoning })),
       );
       const next = [
         ...turns,
@@ -258,6 +262,7 @@ export function MedAsk({
           answer: out.text,
           citations: out.citations,
           ...(out.end ? { end: out.end } : {}),
+          ...(out.reasoning ? { reasoning: out.reasoning } : {}),
         },
       ];
       // The live bubble goes in the same render the saved answer comes in: never both on screen.
@@ -278,7 +283,17 @@ export function MedAsk({
   if (!ctx) return <AiSetup />;
   const bubbles = [
     ...turns,
-    ...(live ? [{ id: "live", question: live.question, answer: live.text, citations: [] }] : []),
+    ...(live
+      ? [
+          {
+            id: "live",
+            question: live.question,
+            answer: live.text,
+            citations: [],
+            reasoning: live.reasoning,
+          },
+        ]
+      : []),
   ];
   return (
     <div className="grid gap-3">
@@ -293,11 +308,30 @@ export function MedAsk({
             aria-live={turn.id === "live" ? "polite" : undefined}
           >
             {turn.answer ? (
-              <Md text={turn.answer} titles={titles} onCite={onCite} />
+              <>
+                {turn.reasoning && turn.id !== "live" ? (
+                  <details className="text-xs text-stone-500">
+                    <summary className="cursor-pointer">{t("ai.reasoning")}</summary>
+                    <p className="doc-text mt-1 italic">{turn.reasoning}</p>
+                  </details>
+                ) : null}
+                <Md text={turn.answer} titles={titles} onCite={onCite} />
+              </>
             ) : (
-              <span className="flex items-center gap-2 text-stone-500">
-                <Spinner /> {t("ai.generating", { model: modelLabel(ctx.settings) })}
-              </span>
+              <div className="grid gap-1.5 text-stone-500">
+                <span className="flex items-center gap-2">
+                  <Spinner />{" "}
+                  {turn.reasoning
+                    ? t("ai.thinking", { model: modelLabel(ctx.settings) })
+                    : t("ai.generating", { model: modelLabel(ctx.settings) })}
+                </span>
+                {turn.reasoning ? (
+                  // The last lines of the reasoning summary, as it comes: the model is working.
+                  <p className="doc-text max-h-24 overflow-hidden text-xs italic [mask-image:linear-gradient(to_bottom,transparent,black_35%)]">
+                    {turn.reasoning.slice(-500)}
+                  </p>
+                ) : null}
+              </div>
             )}
             {"end" in turn && turn.end && turn.end !== "stopped" ? (
               <Badge tone="warn">{t(END_MESSAGES[turn.end])}</Badge>

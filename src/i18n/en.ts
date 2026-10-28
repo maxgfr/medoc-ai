@@ -279,6 +279,8 @@ export const en = {
   },
   ai: {
     stop: "Stop",
+    thinking: "{model} is thinking…",
+    reasoning: "The model's reasoning",
     clearChat: "Clear the conversation",
     endLength: "The answer reached the model's length limit and is cut.",
     endTruncated: "The answer was interrupted before its end.",

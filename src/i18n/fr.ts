@@ -288,6 +288,8 @@ export const fr = {
   },
   ai: {
     stop: "Arrêter",
+    thinking: "{model} réfléchit…",
+    reasoning: "Raisonnement du modèle",
     clearChat: "Effacer la conversation",
     endLength: "La réponse a atteint la longueur maximale du modèle et est coupée.",
     endTruncated: "La réponse s'est interrompue avant la fin.",

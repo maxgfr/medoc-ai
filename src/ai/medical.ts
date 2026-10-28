@@ -5,14 +5,16 @@
  * Markdown, streamed. All cite the sections they rely on; the app shows the
  * section titles and keeps the medical disclaimer on screen.
  */
-import { type ModelMessage, streamText } from "ai";
+import { type ModelMessage, smoothStream, streamText } from "ai";
 import {
   callOptions,
+  effortLevels,
   languageName,
   loadModel,
   providerKindOf,
   type StopReason,
   stopReasonOf,
+  usableEffort,
 } from "llm-connect";
 import { z } from "zod";
 import type { Locale } from "../i18n";
@@ -93,13 +95,19 @@ export interface AskAnswer {
   citations: string[];
   end?: AnswerEnd;
   truncated: boolean;
+  /** The model's summarized reasoning, when it thinks before answering (Claude, GPT-5, Gemini). */
+  reasoning?: string;
 }
+
+/** Questions want a quick first word: the lightest effort the model takes, else its default. */
+export const QUESTION_EFFORT = "low" as const;
 
 /**
  * A question about a medicine, answered in Markdown from its documents and
- * streamed: `onText` gets the whole text so far. Every claim cites its section
- * as [id]; the app turns those into links. Stopped halfway (ctx.signal), the
- * answer keeps what came.
+ * streamed: `onText` gets the whole text so far, word by word; `onReasoning`
+ * the model's reasoning summary while it thinks, which can take seconds before
+ * the first word. Every claim cites its section as [id]; the app turns those
+ * into links. Stopped halfway (ctx.signal), the answer keeps what came.
  */
 export async function askStream(
   ctx: CallContext,
@@ -108,6 +116,7 @@ export async function askStream(
   question: string,
   history: Turn[],
   onText: (text: string) => void,
+  onReasoning?: (reasoning: string) => void,
 ): Promise<AskAnswer> {
   const context = buildContext([doc], documentBudget(ctx), summaryPriority);
   const messages: ModelMessage[] = [
@@ -127,7 +136,12 @@ export async function askStream(
     "When the documents do not answer the question, say so plainly and suggest asking a pharmacist.",
   ].join("\n");
   let text = "";
+  let reasoning = "";
   let failure: unknown = null;
+  const effort = usableEffort(
+    QUESTION_EFFORT,
+    effortLevels(providerKindOf(ctx.settings), ctx.settings.model),
+  );
   // A stream that closes without a finish event was cut.
   let end: AnswerEnd | undefined = "truncated";
   try {
@@ -137,7 +151,9 @@ export async function askStream(
       messages,
       maxRetries: 1,
       ...(ctx.signal ? { abortSignal: ctx.signal } : {}),
-      ...callOptions(ctx.settings, { capabilities }),
+      ...callOptions(ctx.settings, { capabilities, ...(effort ? { effort } : {}) }),
+      // Providers send text in bursts: words come out one at a time, at reading pace.
+      experimental_transform: smoothStream({ chunking: "word", delayInMs: 8 }),
       // Errors come through the stream below; the default would also log them.
       onError: () => {},
     });
@@ -145,6 +161,9 @@ export async function askStream(
       if (part.type === "text-delta") {
         text += part.text;
         onText(text);
+      } else if (part.type === "reasoning-delta") {
+        reasoning += part.text;
+        onReasoning?.(reasoning);
       } else if (part.type === "finish") {
         end =
           UNFINISHED[
@@ -162,6 +181,7 @@ export async function askStream(
     citations: citationsIn(text, context.ids),
     truncated: context.truncated,
     ...(e ? { end: e } : {}),
+    ...(reasoning.trim() ? { reasoning } : {}),
   });
   if (ctx.signal?.aborted) {
     if (text.trim()) return answer("stopped");

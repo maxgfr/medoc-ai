@@ -39,7 +39,12 @@ function answering(json: unknown) {
 }
 
 /** A model streaming `words`, then finishing for `finish` (none: the stream is cut), as in calorie-ai-tracker. */
-function streaming(words: string[], finish?: "stop" | "length", stopper?: AbortController) {
+function streaming(
+  words: string[],
+  finish?: "stop" | "length",
+  stopper?: AbortController,
+  thoughts: string[] = [],
+) {
   const prompts: unknown[] = [];
   const state: { model: MockLanguageModelV4; prompts: unknown[]; finish?: string } = {
     prompts,
@@ -50,6 +55,12 @@ function streaming(words: string[], finish?: "stop" | "length", stopper?: AbortC
         return {
           stream: new ReadableStream({
             async start(c) {
+              if (thoughts.length) {
+                c.enqueue({ type: "reasoning-start", id: "r" });
+                for (const delta of thoughts)
+                  c.enqueue({ type: "reasoning-delta", id: "r", delta });
+                c.enqueue({ type: "reasoning-end", id: "r" });
+              }
               c.enqueue({ type: "text-start", id: "1" });
               for (const delta of words) c.enqueue({ type: "text-delta", id: "1", delta });
               if (stopper) {
@@ -159,13 +170,39 @@ describe("calls", () => {
       (text) => seen.push(text),
     );
     expect(seen.at(-1)).toBe(out.text);
-    expect(seen.length).toBe(2);
+    expect(seen.length).toBeGreaterThan(2);
     expect(out.text).toStartWith("**Non**");
     expect(out.citations).toEqual(["rcp-4.6", "notice-3"]);
     expect(out.end).toBeUndefined();
     expect(JSON.stringify(prompts[0])).toContain("Max ?");
     expect(JSON.stringify(prompts[0])).toContain("Markdown");
     expect(finish).toBe("stop");
+  });
+
+  test("the reasoning comes apart from the answer, and the answer arrives word by word", async () => {
+    const { model } = streaming(
+      ["La notice ne parle pas de l'ibuprofène ", "[notice-2]."],
+      "stop",
+      undefined,
+      ["Je cherche ", "dans la rubrique 2."],
+    );
+    const reasoning: string[] = [];
+    const texts: string[] = [];
+    const out = await askStream(
+      ctx(model),
+      "fr",
+      doliprane,
+      "Avec l'ibuprofène ?",
+      [],
+      (t) => texts.push(t),
+      (r) => reasoning.push(r),
+    );
+    expect(reasoning.at(-1)).toBe("Je cherche dans la rubrique 2.");
+    expect(out.reasoning).toBe("Je cherche dans la rubrique 2.");
+    expect(out.text).toBe("La notice ne parle pas de l'ibuprofène [notice-2].");
+    // Two provider chunks become one update per word.
+    expect(texts.length).toBeGreaterThan(4);
+    expect(out.citations).toEqual(["notice-2"]);
   });
 
   test("an answer cut by the length limit says so; a stopped one keeps what came", async () => {
