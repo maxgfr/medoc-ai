@@ -238,7 +238,8 @@ export async function readBox(
       {
         role: "user",
         content: [
-          { type: "image", image: image.data, mediaType: image.mediaType },
+          // A "file" part: the AI SDK deprecates "image" parts.
+          { type: "file", data: image.data, mediaType: image.mediaType },
           { type: "text", text: "What does this medicine box say?" },
         ],
       },
