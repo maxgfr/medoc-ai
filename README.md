@@ -77,7 +77,11 @@ The UK needs a free [TRUD](https://isd.digital.nhs.uk/trud) account subscribed t
 
 ## Development
 
+The `data` branch holds the index backup (several hundred MB). Clone without it:
+
 ```bash
+git clone --single-branch https://github.com/maxgfr/medoc-ai.git
+# or, in an existing clone: git config remote.origin.fetch '+refs/heads/main:refs/remotes/origin/main'
 bun install
 bun run index --country fr --docs-limit 50   # builds public/data/fr (add us, uk or all)
 bun run dev
