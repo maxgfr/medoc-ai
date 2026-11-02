@@ -3,6 +3,23 @@ import { createTranslator, detectLocale, intlTag, type Locale, type Translate } 
 
 const STORAGE_KEY = "medoc-ai:locale";
 
+// One localStorage for every page of maxgfr.github.io: it can be full or blocked.
+function readLocale(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocale(l: Locale): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, l);
+  } catch {
+    // The language still changes, for this page.
+  }
+}
+
 interface I18nValue {
   locale: Locale;
   t: Translate;
@@ -13,7 +30,7 @@ const I18nContext = createContext<I18nValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(() =>
-    detectLocale(localStorage.getItem(STORAGE_KEY), navigator.languages ?? []),
+    detectLocale(readLocale(), navigator.languages ?? []),
   );
   useEffect(() => {
     document.documentElement.lang = intlTag(locale);
@@ -23,7 +40,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       locale,
       t: createTranslator(locale),
       setLocale: (l) => {
-        localStorage.setItem(STORAGE_KEY, l);
+        writeLocale(l);
         setLocaleState(l);
       },
     }),

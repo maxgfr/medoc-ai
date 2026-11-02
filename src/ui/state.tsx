@@ -83,7 +83,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         color: PROFILE_COLORS[0] ?? "#047857",
         createdAt: new Date().toISOString(),
       };
-      await putProfile(me);
+      // A full storage must not keep the app from starting: the profile lives in memory then.
+      await putProfile(me).catch(() => {});
       ps = [me];
     }
     const stored = await getKv<string>("activeProfile");
@@ -166,12 +167,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       profiles,
       active,
       setActive: async (id) => {
-        await setKv("activeProfile", id);
+        await setKv("activeProfile", id).catch(() => {});
         setActiveId(id);
       },
       scope,
       setScope: async (s) => {
-        await setKv("scope", s);
+        await setKv("scope", s).catch(() => {});
         setScopeState(s);
       },
       available,

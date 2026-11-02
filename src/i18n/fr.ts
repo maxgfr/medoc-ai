@@ -30,6 +30,9 @@ export const fr = {
     disclaimer:
       "Informations issues de sources officielles, à titre indicatif. Elles ne remplacent pas l'avis de votre médecin ou de votre pharmacien.",
     error: "Une erreur est survenue.",
+    notStored: "Non enregistré : le stockage de ce site dans votre navigateur est plein ou bloqué.",
+    storedForPage:
+      "Le stockage de ce site dans votre navigateur est plein ou bloqué : gardé pour cette page seulement, perdu au rechargement.",
     notFound: "Cette page n'existe pas.",
     unknownMed: "Ce médicament n'est plus dans l'index.",
   },

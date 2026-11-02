@@ -1,7 +1,7 @@
 /** A box in the cabinet: added from a medicine page (pre-filled by the scan) or edited. */
 import { type FormEvent, useEffect, useState } from "react";
 import type { CountryId } from "../../shared/schema";
-import { deleteItem, putItem } from "../db/db";
+import { deleteItem, kept, putItem } from "../db/db";
 import { type Item, uid } from "../db/model";
 import { useT } from "../i18n/react";
 import { localDay } from "../reminders/schedule";
@@ -64,6 +64,7 @@ function ItemForm({ initial, isNew = false }: { initial: Item; isNew?: boolean }
   const { profiles, items, reload } = useApp();
   const [item, setItem] = useState(initial);
   const [confirm, setConfirm] = useState(false);
+  const [unsaved, setUnsaved] = useState(false);
   useEffect(() => setItem(initial), [initial]);
   const duplicate =
     isNew && item.serial
@@ -82,7 +83,7 @@ function ItemForm({ initial, isNew = false }: { initial: Item; isNew?: boolean }
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    await putItem(item);
+    if (!(await kept(putItem(item)))) return setUnsaved(true);
     await reload();
     go({ name: "cabinet" }, { replace: true });
   }
@@ -91,7 +92,7 @@ function ItemForm({ initial, isNew = false }: { initial: Item; isNew?: boolean }
     const next = { ...item };
     if (done) next.finishedAt = new Date().toISOString();
     else delete next.finishedAt;
-    await putItem(next);
+    if (!(await kept(putItem(next)))) return setUnsaved(true);
     await reload();
     go({ name: "cabinet" }, { replace: true });
   }
@@ -106,6 +107,7 @@ function ItemForm({ initial, isNew = false }: { initial: Item; isNew?: boolean }
     <form onSubmit={save} className="grid gap-4">
       <PageTitle title={item.name} subtitle={t("cabinet.itemTitle")} />
       {duplicate ? <Notice tone="warn">{t("cabinet.duplicate")}</Notice> : null}
+      {unsaved ? <Notice tone="error">{t("common.notStored")}</Notice> : null}
       <div className="card grid gap-4 sm:grid-cols-2">
         <Field label={t("cabinet.expiry")}>
           <input

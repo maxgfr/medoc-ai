@@ -29,7 +29,7 @@
     "barcode-detector": "3.2.3",
     "fflate": "0.8.3",
     "idb": "8.0.4",
-    "llm-connect": "2.5.0",
+    "llm-connect": "2.6.0",
     "llm-models": "1.14.0",
     "minisearch": "7.2.0",
     "react": "19.3.1",

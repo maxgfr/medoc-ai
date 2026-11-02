@@ -1,11 +1,11 @@
 import { type FormEvent, useState } from "react";
 import type { CountryId } from "../../shared/schema";
-import { deleteTreatment, putTreatment } from "../db/db";
+import { deleteTreatment, kept, putTreatment } from "../db/db";
 import { type Dose, type Treatment, uid } from "../db/model";
 import { useT } from "../i18n/react";
 import { localDay } from "../reminders/schedule";
 import { useMedicine } from "./hooks";
-import { Button, Empty, Field, Icon, LinkButton, PageTitle, Spinner } from "./kit";
+import { Button, Empty, Field, Icon, LinkButton, Notice, PageTitle, Spinner } from "./kit";
 import { go, href } from "./router";
 import { useApp } from "./state";
 
@@ -60,6 +60,7 @@ function TreatmentForm({ initial, isNew = false }: { initial: Treatment; isNew?:
   const { reload, items, profiles } = useApp();
   const [tr, setTr] = useState(initial);
   const [confirm, setConfirm] = useState(false);
+  const [unsaved, setUnsaved] = useState(false);
   const boxes = items.filter(
     (i) => i.profileId === tr.profileId && i.medId === tr.medId && i.country === tr.country,
   );
@@ -80,7 +81,7 @@ function TreatmentForm({ initial, isNew = false }: { initial: Treatment; isNew?:
   async function save(e: FormEvent) {
     e.preventDefault();
     const doses = [...tr.doses].sort((a, b) => a.time.localeCompare(b.time));
-    await putTreatment({ ...tr, doses });
+    if (!(await kept(putTreatment({ ...tr, doses })))) return setUnsaved(true);
     await reload();
     go({ name: "treatments" }, { replace: true });
   }
@@ -94,6 +95,7 @@ function TreatmentForm({ initial, isNew = false }: { initial: Treatment; isNew?:
   return (
     <form onSubmit={save} className="grid gap-4">
       <PageTitle title={tr.name} subtitle={isNew ? t("treat.new") : t("treat.edit")} />
+      {unsaved ? <Notice tone="error">{t("common.notStored")}</Notice> : null}
       <section className="card grid gap-3">
         <h2 className="font-semibold">{t("treat.doses")}</h2>
         {tr.doses.map((d, i) => (

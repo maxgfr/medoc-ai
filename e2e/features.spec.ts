@@ -128,6 +128,36 @@ test("the BDPM files imported in the browser become this device's index, until t
   await expect(page.getByText("Index importé sur cet appareil")).toHaveCount(0);
 });
 
+test("a full storage (every maxgfr.github.io page shares it): the app starts and says what is not saved", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const full = () => {
+      throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+    };
+    Storage.prototype.setItem = full;
+    IDBObjectStore.prototype.put = full;
+    IDBObjectStore.prototype.add = full;
+  });
+  await page.goto("./#/");
+  await page.getByRole("button", { name: "Switch to English" }).click();
+  await expect(page.getByText("Scan a box", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Passer en français" }).click();
+
+  await page.goto("./#/item/new?cc=fr&med=60234100");
+  await page.getByRole("button", { name: "Ajouter" }).click();
+  await expect(page.getByText(/^Non enregistré/)).toBeVisible();
+  await expect(page).not.toHaveURL(/#\/cabinet$/);
+
+  await page.goto("./#/settings");
+  await page.getByRole("tab", { name: "Local / personnalisé" }).click();
+  await page.getByLabel("Point d'accès (compatible OpenAI)").fill("http://localhost:4318/fake/v1");
+  await page.getByLabel("Modèle", { exact: true }).fill("test-model");
+  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await expect(page.getByText(/gardé pour cette page seulement/)).toBeVisible();
+  await expect(page.getByText("Enregistré.")).toHaveCount(0);
+});
+
 test("no screen is wider than the phone", async ({ page }) => {
   const routes = [
     "",

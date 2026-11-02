@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { db, getKv, setKv } from "../db/db";
+import { db, getKv, kept, setKv } from "../db/db";
 import { formatDate } from "../i18n";
 import { useLocale, useT } from "../i18n/react";
 import { treatmentsToIcs } from "../reminders/ics";
@@ -19,6 +19,7 @@ export function Treatments() {
   const all = useLoad(async () => (await db()).getAll("intakes"), [treatments]);
   const reminders = useLoad(() => getKv<boolean>(REMINDERS_KEY), []);
   const [remindersOn, setRemindersOn] = useState<boolean | null>(null);
+  const [unsaved, setUnsaved] = useState(false);
   const on = remindersOn ?? (reminders.status === "ready" ? Boolean(reminders.value) : false);
 
   const current = treatments.filter((x) => !x.end || x.end >= today);
@@ -42,7 +43,8 @@ export function Treatments() {
       const p = await askPermission();
       if (p !== "granted") return;
     }
-    await setKv(REMINDERS_KEY, !on);
+    if (!(await kept(setKv(REMINDERS_KEY, !on)))) return setUnsaved(true);
+    setUnsaved(false);
     setRemindersOn(!on);
   }
 
@@ -55,6 +57,7 @@ export function Treatments() {
           {t("today.title")}
         </LinkButton>
       </PageTitle>
+      {unsaved ? <Notice tone="error">{t("common.notStored")}</Notice> : null}
       {treatments.length ? (
         <>
           {[current, past].map((list, n) =>

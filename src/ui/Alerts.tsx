@@ -77,7 +77,7 @@ export function Alerts() {
   async function enable() {
     const p = await askPermission();
     setPerm(p);
-    if (p === "granted") await setKv(REMINDERS_KEY, true);
+    if (p === "granted") await setKv(REMINDERS_KEY, true).catch(() => {});
   }
 
   return (
