@@ -120,7 +120,7 @@ export function MedSummary({
         at: new Date().toISOString(),
       };
       setSummary(saved);
-      await setAiCache(key, saved);
+      await setAiCache(key, saved).catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : t("ai.errUnknown"));
     } finally {

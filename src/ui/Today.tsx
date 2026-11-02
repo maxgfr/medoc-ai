@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { deleteIntake, intakesOn, putIntake } from "../db/db";
+import { deleteIntake, intakesOn, kept, putIntake } from "../db/db";
 import { formatDate } from "../i18n";
 import { useLocale, useT } from "../i18n/react";
 import { addDays, type DueDose, dosesOn, intakeId, localDay } from "../reminders/schedule";
 import { useLoad } from "./hooks";
-import { Badge, Button, Empty, Icon, LinkButton, PageTitle, Spinner } from "./kit";
+import { Badge, Button, Empty, Icon, LinkButton, Notice, PageTitle, Spinner } from "./kit";
 import { go, href } from "./router";
 import { useApp, useMine } from "./state";
 
@@ -16,23 +16,27 @@ export function Today({ date }: { date?: string }) {
   const today = localDay(new Date());
   const day = date ?? today;
   const [version, setVersion] = useState(0);
+  const [unsaved, setUnsaved] = useState(false);
   const intakes = useLoad(() => intakesOn(day), [day, version]);
   const now = new Date();
   const nowTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
   async function record(d: DueDose, status: "taken" | "skipped" | null) {
     const id = intakeId(d.treatment.id, d.date, d.time);
-    if (status === null) await deleteIntake(id);
-    else
-      await putIntake({
-        id,
-        treatmentId: d.treatment.id,
-        profileId: d.treatment.profileId,
-        date: d.date,
-        time: d.time,
-        status,
-        at: new Date().toISOString(),
-      });
+    const ok = await kept(
+      status === null
+        ? deleteIntake(id)
+        : putIntake({
+            id,
+            treatmentId: d.treatment.id,
+            profileId: d.treatment.profileId,
+            date: d.date,
+            time: d.time,
+            status,
+            at: new Date().toISOString(),
+          }),
+    );
+    setUnsaved(!ok);
     setVersion((v) => v + 1);
   }
 
@@ -48,6 +52,7 @@ export function Today({ date }: { date?: string }) {
           {t("treat.title")}
         </LinkButton>
       </PageTitle>
+      {unsaved ? <Notice tone="error">{t("common.notStored")}</Notice> : null}
       <div className="flex items-center justify-between">
         <button
           type="button"

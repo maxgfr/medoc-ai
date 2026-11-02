@@ -1,8 +1,8 @@
 import { type FormEvent, useState } from "react";
-import { deleteProfile, putProfile } from "../db/db";
+import { deleteProfile, kept, putProfile } from "../db/db";
 import { PROFILE_COLORS, type Profile, uid } from "../db/model";
 import { useT } from "../i18n/react";
-import { Avatar, Button, Field, Icon, PageTitle } from "./kit";
+import { Avatar, Button, Field, Icon, Notice, PageTitle } from "./kit";
 import { useApp } from "./state";
 
 export function Profiles() {
@@ -11,6 +11,7 @@ export function Profiles() {
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<Profile | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [unsaved, setUnsaved] = useState(false);
 
   async function add(e: FormEvent) {
     e.preventDefault();
@@ -21,7 +22,7 @@ export function Profiles() {
       color: PROFILE_COLORS[profiles.length % PROFILE_COLORS.length] ?? "#047857",
       createdAt: new Date().toISOString(),
     };
-    await putProfile(p);
+    if (!(await kept(putProfile(p)))) return setUnsaved(true);
     await reload();
     await setActive(p.id);
     setName("");
@@ -30,7 +31,8 @@ export function Profiles() {
   async function saveEdit(e: FormEvent) {
     e.preventDefault();
     if (!editing?.name.trim()) return;
-    await putProfile({ ...editing, name: editing.name.trim() });
+    if (!(await kept(putProfile({ ...editing, name: editing.name.trim() }))))
+      return setUnsaved(true);
     setEditing(null);
     await reload();
   }
@@ -44,6 +46,7 @@ export function Profiles() {
   return (
     <div className="grid gap-4">
       <PageTitle title={t("profile.title")} subtitle={t("profile.hint")} />
+      {unsaved ? <Notice tone="error">{t("common.notStored")}</Notice> : null}
       <ul className="card divide-y divide-stone-100 p-0 dark:divide-stone-800">
         {profiles.map((p) => {
           const count =

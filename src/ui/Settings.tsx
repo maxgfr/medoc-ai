@@ -82,7 +82,9 @@ function AiSettings() {
     const r = await llm.save();
     setSaved(
       r.ok
-        ? t("settings.saved")
+        ? r.persisted
+          ? t("settings.saved")
+          : t("common.storedForPage")
         : r.reason === "incomplete"
           ? t("settings.incomplete")
           : r.reason === "insecure-endpoint"

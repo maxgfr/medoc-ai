@@ -28,6 +28,9 @@ export const en = {
     disclaimer:
       "Information from official sources, for reference. It does not replace advice from your doctor or pharmacist.",
     error: "Something went wrong.",
+    notStored: "Not saved: this site's storage in your browser is full or blocked.",
+    storedForPage:
+      "This site's storage in your browser is full or blocked: kept for this page only, gone after a reload.",
     notFound: "This page does not exist.",
     unknownMed: "This medicine is not in the index any more.",
   },

@@ -25,6 +25,19 @@ interface MedocDB extends DBSchema {
 
 let dbp: Promise<IDBPDatabase<MedocDB>> | null = null;
 
+/**
+ * Whether a write was kept. Every page of maxgfr.github.io shares this origin's storage
+ * quota: once it is used up (or the browser blocks site data), IndexedDB refuses writes.
+ */
+export async function kept(write: Promise<unknown>): Promise<boolean> {
+  try {
+    await write;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function db(): Promise<IDBPDatabase<MedocDB>> {
   dbp ??= openDB<MedocDB>("medoc-ai", 1, {
     upgrade(d) {
