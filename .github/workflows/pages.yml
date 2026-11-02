@@ -135,6 +135,16 @@ jobs:
           git push -q --force "$remote" data:data
           echo "Index backed up in the data branch." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Refresh the AI model catalog from llm-models
+        # Fresh at every deploy, no weekly PR. If llm-models or an API is down, or the
+        # new catalog fails its check, the committed snapshot ships unchanged.
+        run: |
+          if bun run catalog && bun -e 'JSON.parse(await Bun.file("public/models.json").text())'; then
+            echo "Catalog refreshed." >> "$GITHUB_STEP_SUMMARY"
+          else
+            git checkout -- public/models.json
+            echo "::warning::Catalog refresh failed; the committed snapshot ships."
+          fi
       - run: bun run build
       - name: Index summary
         run: |
